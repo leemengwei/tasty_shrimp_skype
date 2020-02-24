@@ -58,6 +58,9 @@ def get_all_target_people(sk):
     sk.contacts.sync()
     all_contacts = sk.contacts.contactIds
     #others_contacts = ['maguozhi.kemen']
+    with open("output/nowadays_account_now.txt", 'w') as f:
+        for i in all_contacts:
+            f.write(i, '\n')
     others_contacts = open("output/nowadays_account.txt", 'r').readlines()
     others_contacts = ''.join(others_contacts).split('\n')[:]
     all_target_people = all_contacts + others_contacts
@@ -121,16 +124,17 @@ def misc():
 if __name__ == "__main__":
     print("Starting...")
     template_file = "templates/content.txt"
-    username = '18601156335'
-    #username = 'mengxuan@bancosta.com'
-    password = 'lmw196411'
-    #password = 'Lmx921221'
+    #username = '18601156335'
+    username = 'mengxuan@bancosta.com'
+    #password = 'lmw196411'
+    password = 'Bcchina2020'
     
     #Log in:
     sk = login_web_skype(username, password)
 
     #Get all targets:
     all_target_people = get_all_target_people(sk)
+    sys.exit
  
     #Get templates:
     template_contents = [get_template_to_send(template_file)]*len(all_target_people)
