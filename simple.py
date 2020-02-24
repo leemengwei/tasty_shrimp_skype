@@ -60,7 +60,7 @@ def get_all_target_people(sk):
     #others_contacts = ['maguozhi.kemen']
     with open("output/nowadays_account_now.txt", 'w') as f:
         for i in all_contacts:
-            f.write(i, '\n')
+            f.write(i+ '\n')
     others_contacts = open("output/nowadays_account.txt", 'r').readlines()
     others_contacts = ''.join(others_contacts).split('\n')[:]
     all_target_people = all_contacts + others_contacts
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     #Get all targets:
     all_target_people = get_all_target_people(sk)
-    sys.exit
+    sys.exit()
  
     #Get templates:
     template_contents = [get_template_to_send(template_file)]*len(all_target_people)
