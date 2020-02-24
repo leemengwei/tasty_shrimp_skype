@@ -5,6 +5,7 @@ import os,sys
 import pandas as pd
 import tqdm
 import time
+import datetime
 
 def login_web_skype(username, password, sleep=0):
     print("Logging in as %s"%username)
@@ -58,7 +59,7 @@ def get_all_target_people(sk):
     sk.contacts.sync()
     all_contacts = sk.contacts.contactIds
     #others_contacts = ['maguozhi.kemen']
-    with open("output/nowadays_account_now.txt", 'w') as f:
+    with open("output/nowadays_account_%s.txt"%str(datetime.datetime.today()), 'w') as f:
         for i in all_contacts:
             f.write(i+ '\n')
     others_contacts = open("output/nowadays_account.txt", 'r').readlines()
