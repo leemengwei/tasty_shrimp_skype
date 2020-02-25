@@ -22,7 +22,11 @@ def get_template_to_send(template_file):
 def relentlessly_get_blob_by_id(sk, i):
      #RELENTLESSLY:
      try:
-         blob = sk.contacts[i]
+         n = 0
+         while n<100:
+             blob = sk.contacts[i]
+             n += 1
+             time.sleep(0.5)
      except:
          sk = None
          blob = 'broken_tag'
@@ -37,7 +41,6 @@ def relentlessly_get_blob_by_id(sk, i):
 
 def check_invalid_account(sk, all_target_people):
     print("Checking invalid account...")
-    #check again if valid:
     for idx,i in tqdm.tqdm(enumerate(all_target_people)):
         print(idx)
         sk, blob = relentlessly_get_blob_by_id(sk, i)
@@ -46,27 +49,27 @@ def check_invalid_account(sk, all_target_people):
             all_target_people.remove(i)
         else:
             pass
-    f = open("output/nowadays_account.txt", 'w')
+    f = open("data/nowadays_account.txt", 'w')
     for i in all_target_people:
         f.write(i)
         f.write("\n")
     f.close()
     return all_target_people
 
-def get_all_target_people(sk):    
+def get_all_target_people(sk, username, other_contacts_path):    
     #Get sync contacts
     print("Getting contacts...")
     sk.contacts.sync()
     all_contacts = sk.contacts.contactIds
-    #others_contacts = ['maguozhi.kemen']
-    with open("output/nowadays_account_%s.txt"%str(datetime.datetime.today()), 'w') as f:
+    with open("data/%s_nowadays_account_%s.txt"%(username, str(datetime.datetime.today())).split(' ')[0], 'w') as f:
         for i in all_contacts:
             f.write(i+ '\n')
-    others_contacts = open("output/nowadays_account.txt", 'r').readlines()
-    others_contacts = ''.join(others_contacts).split('\n')[:]
+    other_contacts = open(other_contacts_path, 'r').readlines()
+    others_contacts = ''.join(other_contacts).split('\n')[:]
     all_target_people = all_contacts + others_contacts
-    #if check valid, could be slow
-    #all_target_people = check_invalid_account(sk, all_target_people)
+    #all_target_people = other_contacts
+    if CHECK_CONTACTS_VALID:
+        all_target_people = check_invalid_account(sk, all_target_people)
     print("%s people returned"%len(all_target_people))
     return all_target_people
 
@@ -80,9 +83,10 @@ def parse_infos(sk, all_target_people, template_contents):
         for its_attr in blob.attrs:
             which_row = pd_blobs[pd_blobs.id==each_id].index
             if its_attr == 'name':
-                pd_blobs.loc[which_row, its_attr] = str(eval("blob.%s"%its_attr)).split(' ')[0]
+                pd_blobs.loc[which_row, its_attr] = str(eval("blob.%s"%its_attr)).split(' ')[0]             #when parse name, we take first name.
             else:
                 pd_blobs.loc[which_row, its_attr] = str(eval("blob.%s"%its_attr))
+            pd_blobs.loc[which_row, 'contents'] = "Hi %s, just FYI:\n"%pd_blobs.loc[which_row].name[0]+template_contents
     return pd_blobs
 
 def send_messages(sk, pd_blobs):
@@ -90,12 +94,16 @@ def send_messages(sk, pd_blobs):
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
         this_info = pd_blobs.iloc[row].contents
+        this_name = pd_blobs.iloc[row].name
+        print("Now on: %s"%this_name)
         sk, ch = relentlessly_get_blob_by_id(sk, this_id)
-        if ch is None:continue
-        ch = ch.chat
-        #ch.sendMsg(this_info)
-        pd_blobs.counts.iat[row] += 1
-        print("Message sent for %s"%this_id)
+        if ch is None:
+            continue
+        else:
+            ch = ch.chat
+            #ch.sendMsg(this_info)
+            pd_blobs.counts.iat[row] += 1
+            print("Message sent for %s"%this_id)
     return
 
 def misc():
@@ -123,25 +131,30 @@ def misc():
     return
 
 if __name__ == "__main__":
+    CHECK_CONTACTS_VALID = False
     print("Starting...")
-    template_file = "templates/content.txt"
-    #username = '18601156335'
-    username = 'mengxuan@bancosta.com'
-    #password = 'lmw196411'
-    password = 'Bcchina2020'
+    username = '18601156335'
+    #username = 'mengxuan@bancosta.com'
+    password = 'lmw196411'
+    #password = 'Bcchina2020'
+ 
+    template_file = "data/content.txt"
+    other_contacts_path = 'data/other_contacts.txt'
     
     #Log in:
     sk = login_web_skype(username, password)
 
     #Get all targets:
-    all_target_people = get_all_target_people(sk)
-    sys.exit()
+    all_target_people = get_all_target_people(sk, username, other_contacts_path)
+    #sys.exit()
  
     #Get templates:
-    template_contents = [get_template_to_send(template_file)]*len(all_target_people)
+    template_contents = get_template_to_send(template_file)
 
     #Parse together:
     pd_blobs = parse_infos(sk, all_target_people, template_contents)
+    embed()
+    sys.exit()
 
     #Send for every one:
     send_messages(sk, pd_blobs)
