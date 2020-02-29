@@ -260,7 +260,6 @@ if __name__ == "__main__":
         sk.contacts['live:mengxuan_9'].chat.getMsgs()
     print("Old messages ignored.")
     while 1:
-        time.sleep(4)
         chat_messages = relentlessly_get_commander_message(sk, commander_id, username, password)
         print("%s new messages with marshal"%len(chat_messages))
         for message_this in chat_messages:
@@ -270,6 +269,8 @@ if __name__ == "__main__":
                 #Send for every one:
                 send_messages(sk, pd_blobs, external_content = daily_report)
  
+        sys.stdout.flush()
+        time.sleep(4)
    
     sys.exit()
    
