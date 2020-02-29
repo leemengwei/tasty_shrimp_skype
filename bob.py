@@ -44,6 +44,22 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
 
+def relentlessly_get_commander_message(sk, commander_id, username, password):
+    while 1:
+        n = 0
+        while (n<3):    #if getMsg fails, it usually stuck a longtime, so be quick
+            n += 1
+            print("Relent getting marshal, retry:%s"%n)
+            try:
+                chat_messages = sk.contacts[commander_id].chat.getMsgs()
+                return chat_messages
+            except Exception as e:
+                time.sleep(0.5)
+                last_e = e
+                sk.conn.verifyToken(sk.conn.tokens)
+        print("Doing re-log in Due to: %s"%last_e)
+        sk = relentless_login_web_skype(username, password, sleep=3)
+
 def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
     give_up = 0
     while give_up<3: 
@@ -155,7 +171,7 @@ def send_messages(sk, pd_blobs, external_content=None):
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
         this_name = pd_blobs.name[row]
-        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s,\n%s"%(this_name, external_content)
+        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s, this is zombie bob, undying :)\n%s"%(this_name, external_content)
         print("Now on: %s"%this_name)
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
         if blob is None:
@@ -239,19 +255,20 @@ if __name__ == "__main__":
     #sys.exit()
 
     #Wait signal:
+    commander_id = 'live:mengxuan_9'
     while len(sk.contacts['live:mengxuan_9'].chat.getMsgs()):
         sk.contacts['live:mengxuan_9'].chat.getMsgs()
     print("Old messages ignored.")
     while 1:
-        time.sleep(3)
-        chat_messages = sk.contacts['live:mengxuan_9'].chat.getMsgs()
+        time.sleep(4)
+        chat_messages = relentlessly_get_commander_message(sk, commander_id, username, password)
         print("%s new messages with marshal"%len(chat_messages))
         for message_this in chat_messages:
-            if ("TOKEN" in message_this.content):# and (message_this.userId=='live:mengxuan_9'):
+            if ("TOKEN" in message_this.content) and (message_this.userId==commander_id):
                 daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
                 print("Token caught")
                 #Send for every one:
-                send_messages(sk, pd_blobs, daily_report)
+                send_messages(sk, pd_blobs, external_content = daily_report)
  
    
     sys.exit()
