@@ -10,7 +10,7 @@ import timeout_decorator
 
 def flusher(fun):
     sys.stdout.flush()
-    return
+    return fun
 
 @flusher
 def get_template_to_send(template_file):
