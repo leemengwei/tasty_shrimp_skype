@@ -18,6 +18,7 @@ def get_template_to_send(template_file):
     print("Getting template...")
     content = open(template_file, 'r').readlines()
     content = ''.join(content).replace('\n', '\t\n')
+    sys.stdout.flush()
     return content
 
 @flusher
@@ -27,6 +28,7 @@ def relentless_login_web_skype(username, password, sleep=0):
         while 1:
             n += 1
             print("Logging in as %s"%username)
+            sys.stdout.flush()
             time.sleep(sleep)
             try:
                 sk = Skype(username, password) # connect to Skype
@@ -43,6 +45,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
         while (n<30):
             n += 1
             print("Relent getting blob, retry:%s"%n)
+            sys.stdout.flush()
             try:
                 blob = sk.contacts[this_id]
                 return sk, blob
@@ -64,6 +67,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
         while (n<3):  #if getMsg fails, it usually stuck a longtime, so be quick
             n += 1
             print("Relent getting command, retry:%s"%n)
+            sys.stdout.flush()
             try:
                 chat_messages = auto_timeout_getMsgs(commander_id)
                 return chat_messages
@@ -82,6 +86,7 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
         n = 0
         while (n<30):
             print("Relent chating, retry:%s"%n)
+            sys.stdout.flush()
             n += 1
             try:
                 blob_chat = blob.chat
@@ -104,6 +109,7 @@ def check_invalid_account(sk, all_target_people):
         sk, blob = relentlessly_get_blob_by_id(sk, i)
         if blob is None:
             print("Removing invalid %s"%i)
+            sys.stdout.flush()
             all_target_people.remove(i)
         else:
             pass
@@ -115,6 +121,7 @@ def get_all_target_people(sk, username, additional_contacts_path, remove_contact
         dry_target_people = open("./data/%s/mengxuan.txt"%username, 'r').readlines()
         dry_target_people = ''.join(dry_target_people).split('\n')[:]
         print("Returing dry:%s"%dry_target_people)
+        sys.stdout.flush()
         return dry_target_people
     #Get sync contacts
     print("Getting contacts...")
@@ -192,6 +199,7 @@ def send_messages(sk, pd_blobs, external_content=None):
         this_name = pd_blobs.name[row]
         this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s, this is zombie bob, undying :)\n%s"%(this_name, external_content)
         print("Now on: %s"%this_name)
+        sys.stdout.flush()
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
         if blob is None:
             continue
@@ -271,7 +279,6 @@ if __name__ == "__main__":
     print("remove_contacts_path:",remove_contacts_path)
     print("template_file:",template_file)
     print("**********************************************************\n")
-    sys.stdout.flush()
     
     #Log in:
     sk = relentless_login_web_skype(username, password)
