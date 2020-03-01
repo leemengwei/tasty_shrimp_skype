@@ -23,6 +23,10 @@ def get_template_to_send(template_file):
 
 @flusher
 def relentless_login_web_skype(username, password, sleep=0):
+    @timeout_decorator.timeout(30)
+    def auto_timeout_login(username, password):
+        sk = Skype(username, password) # connect to Skype
+        return sk
     while 1:
         n = 0
         while 1:
@@ -31,7 +35,7 @@ def relentless_login_web_skype(username, password, sleep=0):
             sys.stdout.flush()
             time.sleep(sleep)
             try:
-                sk = Skype(username, password) # connect to Skype
+                sk = auto_timeout_login(username, password) # connect to Skype
                 return sk
             except Exception as e:
                 time.sleep(1)
@@ -40,6 +44,10 @@ def relentless_login_web_skype(username, password, sleep=0):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password):
+    @timeout_decorator.timeout(15)
+    def auto_timeout_getblob(sk, this_id):
+        blob = sk.contacts[this_id]
+        return blob
     while 1:
         n = 0
         while (n<30):
@@ -47,7 +55,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
             print("Relent getting blob, retry:%s"%n)
             sys.stdout.flush()
             try:
-                blob = sk.contacts[this_id]
+                blob = auto_timeout_getblob(sk, this_id)
                 return sk, blob
             except Exception as e:
                 time.sleep(0.5)
@@ -58,13 +66,13 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
 
 @flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
-    @timeout_decorator.timeout(4)
+    @timeout_decorator.timeout(15)
     def auto_timeout_getMsgs(commander_id):
         chat_messages = sk.contacts[commander_id].chat.getMsgs()
         return chat_messages
     while 1:
         n = 0
-        while (n<3):  #if getMsg fails, it usually stuck a longtime, so be quick
+        while (n<15): 
             n += 1
             print("Relent getting command, retry:%s"%n)
             sys.stdout.flush()
@@ -80,8 +88,12 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
 
 @flusher
 def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
-    give_up = 0
-    while give_up<3: 
+   @timeout_decorator.timeout(15)
+   def auto_timeout_chat(message):
+       blob.chat.sendMsg(message)
+       return
+   give_up = 0
+   while give_up<3: 
         give_up += 1
         n = 0
         while (n<30):
@@ -89,8 +101,7 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
             sys.stdout.flush()
             n += 1
             try:
-                blob_chat = blob.chat
-                blob_chat.sendMsg(message)
+                auto_timeout_chat(message)
                 return
             except Exception as e:
                 time.sleep(0.5)
@@ -197,7 +208,7 @@ def send_messages(sk, pd_blobs, external_content=None):
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
         this_name = pd_blobs.name[row]
-        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s, this is zombie bob, undying :)\n%s"%(this_name, external_content)
+        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s, (skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull) \n%s"%(this_name, external_content)
         print("Now on: %s"%this_name)
         sys.stdout.flush()
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
@@ -312,7 +323,7 @@ if __name__ == "__main__":
                 send_messages(sk, pd_blobs, external_content = daily_report)
  
 
-        time.sleep(4)
+        time.sleep(5)
    
     sys.exit()
    
