@@ -6,6 +6,7 @@ import pandas as pd
 import tqdm
 import time
 import datetime
+import timeout_decorator
 
 def get_template_to_send(template_file):
     print("Getting template...")
@@ -24,7 +25,7 @@ def relentless_login_web_skype(username, password, sleep=0):
                 sk = Skype(username, password) # connect to Skype
                 return sk
             except Exception as e:
-                time.sleep(0.5)
+                time.sleep(1)
                 print(e)
                 print("Force login again...", n)
 
@@ -45,13 +46,17 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
         sk = relentless_login_web_skype(username, password, sleep=3)
 
 def relentlessly_get_commander_message(sk, commander_id, username, password):
+    @timeout_decorator.timeout(4)
+    def auto_timeout_getMsgs(commander_id):
+        chat_messages = sk.contacts[commander_id].chat.getMsgs()
+        return chat_messages
     while 1:
         n = 0
-        while (n<3):    #if getMsg fails, it usually stuck a longtime, so be quick
+        while (n<3):  #if getMsg fails, it usually stuck a longtime, so be quick
             n += 1
-            print("Relent getting marshal, retry:%s"%n)
+            print("Relent getting command, retry:%s"%n)
             try:
-                chat_messages = sk.contacts[commander_id].chat.getMsgs()
+                chat_messages = auto_timeout_getMsgs(commander_id)
                 return chat_messages
             except Exception as e:
                 time.sleep(0.5)
