@@ -257,6 +257,20 @@ if __name__ == "__main__":
     template_file = "data/%s/content.txt"%username
     if not os.path.exists("data/%s/"%username):
         os.mkdir("data/%s/"%username)
+
+    #Report state:
+    print("\n**************STATE*************************************")
+    print("PRESSURE_TEST:",PRESSURE_TEST)
+    print("CHECK_CONTACTS_VALID:",CHECK_CONTACTS_VALID)
+    print("PARSE_FROM_ZERO:",PARSE_FROM_ZERO)
+    print("DRY_RUN:",DRY_RUN)
+    print("username:",username)
+    print("password:",password)
+    print("additional_contacts_path:",additional_contacts_path)
+    print("remove_contacts_path:",remove_contacts_path)
+    print("template_file:",template_file)
+    print("**********************************************************\n")
+    sys.stdout.flush()
     
     #Log in:
     sk = relentless_login_web_skype(username, password)
@@ -289,7 +303,7 @@ if __name__ == "__main__":
                 #Send for every one:
                 send_messages(sk, pd_blobs, external_content = daily_report)
  
-        sys.stdout.flush()
+
         time.sleep(4)
    
     sys.exit()
