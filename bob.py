@@ -246,7 +246,7 @@ if __name__ == "__main__":
     
     #Log in:
     sk = relentless_login_web_skype(username, password)
-
+    embed()
     #Get all targets:
     all_target_people = get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path)
     #sys.exit()
@@ -262,7 +262,8 @@ if __name__ == "__main__":
     #Wait signal:
     commander_id = 'live:mengxuan_9'
     while len(sk.contacts['live:mengxuan_9'].chat.getMsgs()):
-        sk.contacts['live:mengxuan_9'].chat.getMsgs()
+        tmp = sk.contacts['live:mengxuan_9'].chat.getMsgs()
+        print(tmp,)
     print("Old messages ignored.")
     while 1:
         chat_messages = relentlessly_get_commander_message(sk, commander_id, username, password)
