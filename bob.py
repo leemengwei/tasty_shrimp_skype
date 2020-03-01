@@ -8,12 +8,18 @@ import time
 import datetime
 import timeout_decorator
 
+def flusher(fun):
+    sys.stdout.flush()
+    return
+
+@flusher
 def get_template_to_send(template_file):
     print("Getting template...")
     content = open(template_file, 'r').readlines()
     content = ''.join(content).replace('\n', '\t\n')
     return content
 
+@flusher
 def relentless_login_web_skype(username, password, sleep=0):
     while 1:
         n = 0
@@ -29,6 +35,7 @@ def relentless_login_web_skype(username, password, sleep=0):
                 print(e)
                 print("Force login again...", n)
 
+@flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password):
     while 1:
         n = 0
@@ -45,6 +52,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
 
+@flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
     @timeout_decorator.timeout(4)
     def auto_timeout_getMsgs(commander_id):
@@ -65,6 +73,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
 
+@flusher
 def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
     give_up = 0
     while give_up<3: 
@@ -86,6 +95,7 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
         sk = relentless_login_web_skype(username, password, sleep=3)
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
    
+@flusher
 def check_invalid_account(sk, all_target_people):
     print("Checking invalid account...")
     for idx,i in tqdm.tqdm(enumerate(all_target_people)):
@@ -98,6 +108,7 @@ def check_invalid_account(sk, all_target_people):
             pass
     return all_target_people
 
+@flusher
 def get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path):    
     if DRY_RUN:
         dry_target_people = open("./data/%s/mengxuan.txt"%username, 'r').readlines()
@@ -130,6 +141,7 @@ def get_all_target_people(sk, username, additional_contacts_path, remove_contact
     #print(all_target_people)
     return all_target_people
 
+@flusher
 def parse_infos(sk, all_target_people, template_contents, username, password):
     print("Parsing infos...")
     if PARSE_FROM_ZERO or DRY_RUN:   #which takes long time
@@ -171,6 +183,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
         print("contacts_profile updated...")
     return pd_blobs
  
+@flusher
 def send_messages(sk, pd_blobs, external_content=None):
     print("Sending messages...")
     for row in tqdm.tqdm(range(len(pd_blobs))):
@@ -196,6 +209,7 @@ def send_messages(sk, pd_blobs, external_content=None):
             print("Message sent for %s:%s"%(this_id, this_info))
     return
 
+@flusher
 def misc():
     #person_talk_to = {}
     #person_talk_to['nickname'] = 'test_for_py'
@@ -246,7 +260,7 @@ if __name__ == "__main__":
     
     #Log in:
     sk = relentless_login_web_skype(username, password)
-    embed()
+    
     #Get all targets:
     all_target_people = get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path)
     #sys.exit()
