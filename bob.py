@@ -9,6 +9,7 @@ import datetime
 import timeout_decorator
 
 def flusher(fun):
+    print("In function: ", fun.__name__)
     sys.stdout.flush()
     return fun
 
