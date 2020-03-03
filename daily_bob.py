@@ -44,7 +44,7 @@ def relentless_login_web_skype(username, password, sleep=0):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password):
-    @timeout_decorator.timeout(20)
+    @timeout_decorator.timeout(30)
     def auto_timeout_getblob(sk, this_id):
         blob = sk.contacts[this_id]
         return blob
