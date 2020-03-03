@@ -44,15 +44,15 @@ def relentless_login_web_skype(username, password, sleep=0):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password):
-    @timeout_decorator.timeout(15)
+    @timeout_decorator.timeout(20)
     def auto_timeout_getblob(sk, this_id):
         blob = sk.contacts[this_id]
         return blob
     while 1:
         n = 0
-        while (n<30):
+        while (n<10):
             n += 1
-            print("Relent getting blob, retry:%s"%n)
+            print("Relent getting blob %s, retry:%s"%(this_id, n))
             sys.stdout.flush()
             try:
                 blob = auto_timeout_getblob(sk, this_id)
@@ -93,10 +93,10 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
        blob.chat.sendMsg(message)
        return
    give_up = 0
-   while give_up<3: 
+   while give_up<2: 
         give_up += 1
         n = 0
-        while (n<30):
+        while (n<15):
             print("Relent chating, retry:%s"%n)
             sys.stdout.flush()
             n += 1
@@ -106,8 +106,11 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
+                if str(last_e.args[1])=="<Response [403]>":
+                    print("403 cannot receive by id:", this_id)
+                    return
                 sk.conn.verifyToken(sk.conn.tokens)
-        #If still can't chat for 60 times
+        #If still can't chat for times
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
@@ -130,7 +133,7 @@ def check_invalid_account(sk, all_target_people):
 def get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path):    
     if DRY_RUN:
         dry_target_people = open("./data/%s/mengxuan.txt"%username, 'r').readlines()
-        dry_target_people = ''.join(dry_target_people).split('\n')[:]
+        dry_target_people = ''.join(dry_target_people).split('\n')[:-1]
         print("Returing dry:%s"%dry_target_people)
         sys.stdout.flush()
         return dry_target_people
@@ -208,7 +211,7 @@ def send_messages(sk, pd_blobs, external_content=None):
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
         this_name = pd_blobs.name[row]
-        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s, (skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull)(skull) \n%s"%(this_name, external_content)
+        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s,\n%s"%(this_name, external_content)
         print("Now on: %s"%this_name)
         sys.stdout.flush()
         sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
@@ -245,9 +248,7 @@ def misc():
     #ch = sk.contacts.user(person_talk_to['id']) #so far, same as .contact
     
     #ch = sk.chats.create([person_talk_to]) # new group conversation
-    #ch = sk.contacts[person_talk_to].chat # 1-to-1 conversation
 
-    #ch.sendMsg("Hi")
     #ch.sendFile(open("song.mp3", "rb"), "song.mp3") # file upload
     #ch.sendContact(sk.contacts["daisy.5"]) # contact sharing
 
@@ -267,11 +268,12 @@ if __name__ == "__main__":
     if PRESSURE_TEST:
         DRY_RUN = True
     print("Starting...")
-    username = '18601156335'
-    #username = 'mengxuan@bancosta.com'
-    password = 'lmw196411'
-    #password = 'Bcchina2020'
- 
+    #username = '18601156335'
+    username = 'mengxuan@bancosta.com'
+    #password = 'lmw196411'
+    password = 'Bcchina2020'
+    me_id = "live:a4333d00d55551e"
+
     additional_contacts_path = 'data/%s/saved_contacts.txt'%username
     remove_contacts_path = 'data/%s/removed_contacts.txt'%username
     template_file = "data/%s/content.txt"%username
@@ -303,20 +305,23 @@ if __name__ == "__main__":
 
     #Parse together:
     pd_blobs = parse_infos(sk, all_target_people, template_contents, username, password)
-    #embed()
     #sys.exit()
 
     #Wait signal:
-    commander_id = 'live:mengxuan_9'
-    while len(sk.contacts['live:mengxuan_9'].chat.getMsgs()):
-        tmp = sk.contacts['live:mengxuan_9'].chat.getMsgs()
-        print(tmp,)
+    commander_ids = ['live:892bfe64f9296876', 'live:mengxuan_9', me_id]
+    for commander_id in commander_ids:
+        tmp = ['old_messages']
+        while len(tmp)>0:
+            tmp = relentlessly_get_commander_message(sk, commander_id, username, password)
+            print("Old messages ignored.")
     print("Old messages ignored.")
     while 1:
-        chat_messages = relentlessly_get_commander_message(sk, commander_id, username, password)
-        print("%s new messages with marshal"%len(chat_messages))
+        chat_messages = []
+        for commander_id in commander_ids:
+            chat_messages += relentlessly_get_commander_message(sk, commander_id, username, password)
+        print("%s new messages with commander"%len(chat_messages), chat_messages)
         for message_this in chat_messages:
-            if ("TOKEN" in message_this.content) and (message_this.userId==commander_id):
+            if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids):
                 daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
                 print("Token caught")
                 #Send for every one:
