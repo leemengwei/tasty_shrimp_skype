@@ -1,6 +1,9 @@
 import os,sys,time
 import pandas as pd
 from IPython import embed
+import re
+import glob
+import tqdm
 
 README = \
 '''
@@ -33,27 +36,43 @@ README = \
 '''
 
 def parse_msg(msg_file_path):
-    msg_content = []
+    msg_content = ''.join(open(msg_file_path, 'r').readlines()).strip('\n')
+    print("Msg read:", "~"*24)
+    print(msg_content)
+    print("~"*30)
     return msg_content
 
-def get_sender_name(msg_content):
-    sender_name = []
-    return sender_name
+def get_sender_email(msg_content):
+    sender_email = None
+    c = re.compile(r'[0-9a-z_-]+@([0-9a-z]+.)+[a-z]+', re.I)
+    s = c.search(msg_content)
+    if s:
+        sender_email = s.group()
+        print(sender_email)
+    return sender_email
 
-def judge_if_direct_counterpart(sender_name):
+def judge_if_direct_counterpart(sender_email):
     direct_counterpart = True
     return direct_counterpart
 
 def retrieve_vessel(msg_content):
+    vessels_repository = open(DATA_PATH_PREFIX+"/vessels_repository.txt", 'r').readlines()
     vessels_name = []
+    print("Got vessels name:", vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
-    skype_id = []
-    return skype_id
+    skypes_id = None
+    c = re.compile(r'skype[ 0-9a-z_\-:]+', re.I)
+    s = c.search(msg_content)
+    if s:
+        skypes_id = s.group()
+        print(skypes_id)
+    return skypes_id
 
-def parse_blob(vessels_name, sender_name, skypes_id):
+def parse_blob(vessels_name, sender_email, skypes_id):
     blob = []
+    print("Got blob:", blob)
     return blob
 
 if __name__ == "__main__":
@@ -61,19 +80,20 @@ if __name__ == "__main__":
     print(README)
 
     #Config:
-    msg_files = ["1.msg"]
+    DATA_PATH_PREFIX = './data/data_principle_net/'
+    msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
     #Loop over msgs:
     for this_msg_file in msg_files:
+        print("\nIn file %s: "%this_msg_file)
         msg_content = parse_msg(this_msg_file)
-        sender_name = get_sender_name(msg_content)
-        if judge_if_direct_counterpart(sender_name) is True:
+        sender_email = get_sender_email(msg_content)
+        if judge_if_direct_counterpart(sender_email) is True:
             vessels_name = retrieve_vessel(msg_content)
             skypes_id = retrieve_skype(msg_content)
-            blob = parse_blob(vessels_name, sender_name, skypes_id)
+            blob = parse_blob(vessels_name, sender_email, skypes_id)
         else:
-            continue
-
+            print("Not direct couterpart: %s"%sender_email)
 
 
 

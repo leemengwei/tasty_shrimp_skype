@@ -23,7 +23,7 @@ def get_template_to_send(template_file):
 
 @flusher
 def relentless_login_web_skype(username, password, sleep=0):
-    @timeout_decorator.timeout(30)
+    @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_login(username, password):
         sk = Skype(username, password) # connect to Skype
         return sk
@@ -44,13 +44,13 @@ def relentless_login_web_skype(username, password, sleep=0):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password):
-    @timeout_decorator.timeout(30)
+    @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_getblob(sk, this_id):
         blob = sk.contacts[this_id]
         return blob
     while 1:
         n = 0
-        while (n<10):
+        while (n<3):
             n += 1
             print("Relent getting blob %s, retry:%s"%(this_id, n))
             sys.stdout.flush()
@@ -66,13 +66,13 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
 
 @flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
-    @timeout_decorator.timeout(15)
+    @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_getMsgs(commander_id):
         chat_messages = sk.contacts[commander_id].chat.getMsgs()
         return chat_messages
     while 1:
         n = 0
-        while (n<15): 
+        while (n<5): 
             n += 1
             print("Relent getting command, retry:%s"%n)
             sys.stdout.flush()
@@ -83,12 +83,15 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
                 time.sleep(0.5)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
+                if "Response" in str(last_e):
+                    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
+                    return []
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
 
 @flusher
 def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
-   @timeout_decorator.timeout(15)
+   @timeout_decorator.timeout(WAIT_TIME)
    def auto_timeout_chat(message):
        blob.chat.sendMsg(message)
        return
@@ -96,7 +99,7 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
    while give_up<2: 
         give_up += 1
         n = 0
-        while (n<15):
+        while (n<10):
             print("Relent chating, retry:%s"%n)
             sys.stdout.flush()
             n += 1
@@ -106,8 +109,8 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
-                if str(last_e.args[1])=="<Response [403]>":
-                    print("403 cannot receive by id:", this_id)
+                if "Response" in str(last_e):
+                    print("Cannot receive by id:", this_id, 'due to %s'%last_e)
                     return
                 sk.conn.verifyToken(sk.conn.tokens)
         #If still can't chat for times
@@ -204,7 +207,24 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
         pd_blobs.to_csv('data/%s/contacts_profile.csv'%username, index=None)
         print("contacts_profile updated...")
     return pd_blobs
- 
+
+@flusher
+def send_messages_simple(sk, all_target_people, external_content):
+    print("Sending messages simple...")
+    for this_id in tqdm.tqdm(all_target_people):
+        this_info = "Hi,\n%s"%(external_content)
+        print("Now on: %s"%this_id)
+        sys.stdout.flush()
+        sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
+        if blob is None:
+            continue
+        else:
+            #Normal mode:
+            relentlessly_chat_by_blob(sk, blob, this_info, username, password, this_id)
+            print("Message sent for %s:%s"%(this_id, this_info))
+    return
+
+
 @flusher
 def send_messages(sk, pd_blobs, external_content=None):
     print("Sending messages...")
@@ -256,6 +276,7 @@ def misc():
     return
 
 if __name__ == "__main__":
+    WAIT_TIME = 35
     PRESSURE_TEST = False
     #PRESSURE_TEST = True
     CHECK_CONTACTS_VALID = False
@@ -325,8 +346,8 @@ if __name__ == "__main__":
                 daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
                 print("Token caught")
                 #Send for every one:
-                send_messages(sk, pd_blobs, external_content = daily_report)
- 
+                #send_messages(sk, pd_blobs, external_content = daily_report)
+                send_messages_simple(sk, all_target_people, external_content = daily_report)
 
         time.sleep(5)
    
