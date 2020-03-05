@@ -4,6 +4,10 @@ from IPython import embed
 import re
 import glob
 import tqdm
+import extract_msg
+#import openpyxl
+import xlrd
+
 
 README = \
 '''
@@ -35,19 +39,24 @@ README = \
 
 '''
 
-def parse_msg(msg_file_path):
-    msg_content = ''.join(open(msg_file_path, 'r').readlines()).strip('\n')
-    print("Msg read:", "~"*24)
-    print(msg_content)
-    print("~"*30)
-    return msg_content
 
-def get_sender_email(msg_content):
-    sender_email = None
-    c = re.compile(r'[0-9a-z_-]+@([0-9a-z]+.)+[a-z]+', re.I)
-    s = c.search(msg_content)
-    if s:
-        sender_email = s.group()
+def parse_msg(msg_file_path):
+    f = msg_file_path  # Replace with yours
+    msg = extract_msg.Message(f)
+    #msg_sender = msg.sender
+    #msg_date = msg.date
+    #msg_subj = msg.subject
+    msg_content = msg.body
+    if DEBUG:
+        print("Got msg:\n", "~"*24)
+        print(msg_content[:20])
+        print("~"*30)
+    return msg, msg_content
+
+def get_sender_email(msg):
+    sender_email = msg.sender
+    if DEBUG:
+        print("Got sender:")
         print(sender_email)
     return sender_email
 
@@ -56,9 +65,10 @@ def judge_if_direct_counterpart(sender_email):
     return direct_counterpart
 
 def retrieve_vessel(msg_content):
-    vessels_repository = open(DATA_PATH_PREFIX+"/vessels_repository.txt", 'r').readlines()
     vessels_name = []
-    print("Got vessels name:", vessels_name)
+    if DEBUG:
+        print("Got vessels name:")
+        print(vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -67,34 +77,65 @@ def retrieve_skype(msg_content):
     s = c.search(msg_content)
     if s:
         skypes_id = s.group()
+    if DEBUG:
+        print("Got skype:")
         print(skypes_id)
     return skypes_id
 
 def parse_blob(vessels_name, sender_email, skypes_id):
     blob = []
-    print("Got blob:", blob)
+    if DEBUG:
+        print("Got blob:", blob)
     return blob
+
+def get_counterparts_repository():
+    #couterparts_repository = open(DATA_PATH_PREFIX+"/couterparts_repository.txt", 'r').readlines()
+    couterparts_repository = []
+    return couterparts_repository
+
+def get_vessels_repository():
+    workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
+    vessels_repository = []
+    for sheet in workbook.sheet_names():
+        table = workbook.sheet_by_name(sheet)
+        vessels_repository += table.col_values(1)[1:]
+    return vessels_repository
 
 if __name__ == "__main__":
     print("Start principle net...")
     print(README)
 
     #Config:
-    DATA_PATH_PREFIX = './data/data_principle_net/'
+    DEBUG = True
+    #DEBUG = False
+    DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
+    #Repos:
+    couterparts_repository = get_counterparts_repository()
+    vessels_repository = get_vessels_repository()
+    embed()
+
     #Loop over msgs:
-    for this_msg_file in msg_files:
-        print("\nIn file %s: "%this_msg_file)
-        msg_content = parse_msg(this_msg_file)
-        sender_email = get_sender_email(msg_content)
+    num_of_failures = 0
+    failure_list = []
+    for this_msg_file in tqdm.tqdm(msg_files):
+        if DEBUG:
+            print("\nIn file %s: "%this_msg_file)
+        try:
+            msg, msg_content = parse_msg(this_msg_file)
+        except:
+            num_of_failures += 1
+            failure_list.append(this_msg_file)
+            continue
+        sender_email = get_sender_email(msg)
         if judge_if_direct_counterpart(sender_email) is True:
             vessels_name = retrieve_vessel(msg_content)
             skypes_id = retrieve_skype(msg_content)
             blob = parse_blob(vessels_name, sender_email, skypes_id)
         else:
             print("Not direct couterpart: %s"%sender_email)
-
+    print("Failures %s:"%num_of_failures, failure_list)
 
 
 
