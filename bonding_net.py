@@ -49,7 +49,7 @@ def parse_msg(msg_file_path):
     msg_content = msg.body
     if DEBUG:
         print("Got msg:\n", "~"*24)
-        print(msg_content[:20])
+        #print(msg_content[:50])
         print("~"*30)
     return msg, msg_content
 
@@ -64,19 +64,20 @@ def judge_if_direct_counterpart(sender_email):
     direct_counterpart = True
     return direct_counterpart
 
-def retrieve_vessel(msg_content):
-    vessels_name = []
+def retrieve_vessel(msg_content, vessels_c):
+    vessels_name = vessels_c.findall(msg_content)
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
-    skypes_id = None
+    tmp = re.compile(r'skype', re.I)
+    tmp_id = tmp.search(msg_content)
+    #if tmp_id:
+    #    print("\n"+msg_content[tmp_id.span()[0]: tmp_id.span()[1]+30])
     c = re.compile(r'skype[ 0-9a-z_\-:]+', re.I)
-    s = c.search(msg_content)
-    if s:
-        skypes_id = s.group()
+    skypes_id = c.findall(msg_content)
     if DEBUG:
         print("Got skype:")
         print(skypes_id)
@@ -99,7 +100,19 @@ def get_vessels_repository():
     for sheet in workbook.sheet_names():
         table = workbook.sheet_by_name(sheet)
         vessels_repository += table.col_values(1)[1:]
-    return vessels_repository
+    vessels_repository = list(set(vessels_repository))
+    #safe_name = []
+    #unsafe_name = []
+    #for vessel in vessels_repository:
+    #    if len(vessel)>=8:
+    #        safe_name.append(vessel)
+    #    else:
+    #        unsafe_name.append("[M|m][.]?[V|v][.]? "+vessel)
+    #vessels_c = re.compile(r'|'.join(safe_name+unsafe_name))
+    pattern = '[M|m][.]?[V|v][.]?'+'|[M|m][.]?[V|v][.]? '.join(vessels_repository)
+    pattern_2 = '|[Ff][Oo][Rr][ :\\n]*'.join(vessels_repository)   #TODO
+    vessels_c = re.compile(r'%s'%pattern)
+    return vessels_repository, vessels_c
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -107,14 +120,13 @@ if __name__ == "__main__":
 
     #Config:
     DEBUG = True
-    #DEBUG = False
+    DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
     #Repos:
     couterparts_repository = get_counterparts_repository()
-    vessels_repository = get_vessels_repository()
-    embed()
+    vessels_repository, vessels_c = get_vessels_repository()
 
     #Loop over msgs:
     num_of_failures = 0
@@ -130,11 +142,12 @@ if __name__ == "__main__":
             continue
         sender_email = get_sender_email(msg)
         if judge_if_direct_counterpart(sender_email) is True:
-            vessels_name = retrieve_vessel(msg_content)
+            vessels_name = retrieve_vessel(msg_content, vessels_c)
             skypes_id = retrieve_skype(msg_content)
             blob = parse_blob(vessels_name, sender_email, skypes_id)
         else:
             print("Not direct couterpart: %s"%sender_email)
+
     print("Failures %s:"%num_of_failures, failure_list)
 
 
