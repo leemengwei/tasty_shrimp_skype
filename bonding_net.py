@@ -74,11 +74,18 @@ def retrieve_vessel(msg_content, vessels_c):
 def retrieve_skype(msg_content):
     tmp = re.compile(r'skype', re.I)
     tmp_id = tmp.search(msg_content)
-    #if tmp_id:
-    #    print("\n"+msg_content[tmp_id.span()[0]: tmp_id.span()[1]+30])
-    c = re.compile(r'skype[ 0-9a-z_\-:]+', re.I)
+    if tmp_id:
+        print("\n"+msg_content[tmp_id.span()[0]-15: tmp_id.span()[1]+15])
+    #Skype : xxxx
+    pattern1 = '[\(]?skype[\)]?[ ]?[ ]?[ ]?[:]?([ 0-9a-z_\-:\.@]+)'
+    #skype id : xxx
+    pattern2 = 'skype[ ]*id[ ]*:([ 0-9a-z_\-:\.@]+)'
+    #skpye msn :xx
+    pattern3 = 'skype/msn[ ]*:([ 0-9a-z_\-:\.@]+)'
+    all_patterns = '|'.join([pattern1, pattern2, pattern3])
+    c = re.compile(all_patterns, re.I)
     skypes_id = c.findall(msg_content)
-    if DEBUG:
+    if tmp_id:
         print("Got skype:")
         print(skypes_id)
     return skypes_id
@@ -96,22 +103,35 @@ def get_counterparts_repository():
 
 def get_vessels_repository():
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
-    vessels_repository = []
+    vessels_repository_raw = []
     for sheet in workbook.sheet_names():
         table = workbook.sheet_by_name(sheet)
-        vessels_repository += table.col_values(1)[1:]
-    vessels_repository = list(set(vessels_repository))
-    #safe_name = []
-    #unsafe_name = []
-    #for vessel in vessels_repository:
-    #    if len(vessel)>=8:
-    #        safe_name.append(vessel)
-    #    else:
-    #        unsafe_name.append("[M|m][.]?[V|v][.]? "+vessel)
-    #vessels_c = re.compile(r'|'.join(safe_name+unsafe_name))
-    pattern = '[M|m][.]?[V|v][.]?'+'|[M|m][.]?[V|v][.]? '.join(vessels_repository)
-    pattern_2 = '|[Ff][Oo][Rr][ :\\n]*'.join(vessels_repository)   #TODO
-    vessels_c = re.compile(r'%s'%pattern)
+        vessels_repository_raw += table.col_values(1)[1:]
+    vessels_repository = list(set(vessels_repository_raw))
+    vessels_repository.sort(key=vessels_repository_raw.index)
+    safe_name = []
+    unsafe_name = []
+    for vessel in vessels_repository:
+        if ' ' in vessel or '.' in vessel or '-' in vessel:
+            safe_name.append(vessel)
+        else:
+            unsafe_name.append(vessel)
+    #Use raw name for safe:
+    head = '('
+    tail = ')[^A-Za-z0-9]'
+    pattern1 = head+'|'.join(safe_name)+tail
+    #Mv m.v m/v added for unsafe:
+    head = '[M|m][.|/]?[V|v][.|/:]? [\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern2 = head+'|'.join(unsafe_name)+tail
+    #Porpose propse purpose pps ppse offer for:
+    head = '[Pp][Uu|Rr]?[Rr|Oo]*[Pp][Oo]?[Ss][Ee]?|[Oo]ffer|OFFER [Ff][Oo][Rr][ :\\n\\r\\t]*[\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern3 = head+'|'.join(unsafe_name)+tail
+    #Not in repository:  mv
+    extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ ]?[A-Za-z0-9]*)[\'|\"]?'
+    all_patterns = '|'.join([pattern1, pattern2, pattern3, extra_MV_patterns])
+    vessels_c = re.compile(r'%s'%all_patterns)
     return vessels_repository, vessels_c
 
 if __name__ == "__main__":
