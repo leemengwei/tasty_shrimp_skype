@@ -49,7 +49,7 @@ def parse_msg(msg_file_path):
     msg_content = msg.body
     if DEBUG:
         print("Got msg:\n", "~"*24)
-        print(msg_content[:20])
+        #print(msg_content[:50])
         print("~"*30)
     return msg, msg_content
 
@@ -64,20 +64,28 @@ def judge_if_direct_counterpart(sender_email):
     direct_counterpart = True
     return direct_counterpart
 
-def retrieve_vessel(msg_content):
-    vessels_name = []
+def retrieve_vessel(msg_content, vessels_c):
+    vessels_name = vessels_c.findall(msg_content)
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
-    skypes_id = None
-    c = re.compile(r'skype[ 0-9a-z_\-:]+', re.I)
-    s = c.search(msg_content)
-    if s:
-        skypes_id = s.group()
-    if DEBUG:
+    tmp = re.compile(r'skype', re.I)
+    tmp_id = tmp.search(msg_content)
+    if tmp_id:
+        print("\n"+msg_content[tmp_id.span()[0]-15: tmp_id.span()[1]+15])
+    #Skype : xxxx
+    pattern1 = '[\(]?skype[\)]?[ ]?[ ]?[ ]?[:]?([ 0-9a-z_\-:\.@]+)'
+    #skype id : xxx
+    pattern2 = 'skype[ ]*id[ ]*:([ 0-9a-z_\-:\.@]+)'
+    #skpye msn :xx
+    pattern3 = 'skype/msn[ ]*:([ 0-9a-z_\-:\.@]+)'
+    all_patterns = '|'.join([pattern1, pattern2, pattern3])
+    c = re.compile(all_patterns, re.I)
+    skypes_id = c.findall(msg_content)
+    if tmp_id:
         print("Got skype:")
         print(skypes_id)
     return skypes_id
@@ -95,11 +103,36 @@ def get_counterparts_repository():
 
 def get_vessels_repository():
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
-    vessels_repository = []
+    vessels_repository_raw = []
     for sheet in workbook.sheet_names():
         table = workbook.sheet_by_name(sheet)
-        vessels_repository += table.col_values(1)[1:]
-    return vessels_repository
+        vessels_repository_raw += table.col_values(1)[1:]
+    vessels_repository = list(set(vessels_repository_raw))
+    vessels_repository.sort(key=vessels_repository_raw.index)
+    safe_name = []
+    unsafe_name = []
+    for vessel in vessels_repository:
+        if ' ' in vessel or '.' in vessel or '-' in vessel:
+            safe_name.append(vessel)
+        else:
+            unsafe_name.append(vessel)
+    #Use raw name for safe:
+    head = '('
+    tail = ')[^A-Za-z0-9]'
+    pattern1 = head+'|'.join(safe_name)+tail
+    #Mv m.v m/v added for unsafe:
+    head = '[M|m][.|/]?[V|v][.|/:]? [\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern2 = head+'|'.join(unsafe_name)+tail
+    #Porpose propse purpose pps ppse offer for:
+    head = '[Pp][Uu|Rr]?[Rr|Oo]*[Pp][Oo]?[Ss][Ee]?|[Oo]ffer|OFFER [Ff][Oo][Rr][ :\\n\\r\\t]*[\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern3 = head+'|'.join(unsafe_name)+tail
+    #Not in repository:  mv
+    extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ ]?[A-Za-z0-9]*)[\'|\"]?'
+    all_patterns = '|'.join([pattern1, pattern2, pattern3, extra_MV_patterns])
+    vessels_c = re.compile(r'%s'%all_patterns)
+    return vessels_repository, vessels_c
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -107,14 +140,13 @@ if __name__ == "__main__":
 
     #Config:
     DEBUG = True
-    #DEBUG = False
+    DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
     #Repos:
     couterparts_repository = get_counterparts_repository()
-    vessels_repository = get_vessels_repository()
-    embed()
+    vessels_repository, vessels_c = get_vessels_repository()
 
     #Loop over msgs:
     num_of_failures = 0
@@ -130,11 +162,12 @@ if __name__ == "__main__":
             continue
         sender_email = get_sender_email(msg)
         if judge_if_direct_counterpart(sender_email) is True:
-            vessels_name = retrieve_vessel(msg_content)
+            vessels_name = retrieve_vessel(msg_content, vessels_c)
             skypes_id = retrieve_skype(msg_content)
             blob = parse_blob(vessels_name, sender_email, skypes_id)
         else:
             print("Not direct couterpart: %s"%sender_email)
+
     print("Failures %s:"%num_of_failures, failure_list)
 
 

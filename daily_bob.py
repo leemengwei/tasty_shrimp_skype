@@ -238,6 +238,8 @@ def send_messages(sk, pd_blobs, external_content=None):
         if blob is None:
             continue
         else:
+            if str(blob.name) == '':
+                continue
             #Pressure test mode:
             n = 0
             while PRESSURE_TEST:
