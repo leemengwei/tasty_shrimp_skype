@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
     #Config:
     DEBUG = True
-    DEBUG = False
+    #DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
