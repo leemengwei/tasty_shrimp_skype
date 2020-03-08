@@ -7,7 +7,27 @@ import tqdm
 import extract_msg
 #import openpyxl
 import xlrd
+import yaml
 
+SKYPE_TESTER = \
+'''
+SKYPE: alloisi@olorenzo
+Skype: Tassos Armyriotis
+Skype: live:Tassriotis
+skype : izden.unlu1
+skype : izden_unlu221
+skype id: cvnrpgh
+(SKYPE) live:wynn_mi11ttpe
+(SKYPEid) live:wynn_mi22ttpe
+SKYPEid) live:wynn_mitt33pe
+SKYPE) live:wynn_mittp444e
+skype live:sychioi
+skype:impsmb<abc>
+sta1rvo(skype id)
+star22vo(skype)
+Skype: + Filippo.Gabutto
+SKYPE (live) mathewmohanchat
+'''
 
 README = \
 '''
@@ -45,8 +65,8 @@ def parse_msg(msg_file_path):
     msg = extract_msg.Message(f)
     #msg_sender = msg.sender
     #msg_date = msg.date
-    #msg_subj = msg.subject
-    msg_content = msg.body
+    msg_subj = msg.subject
+    msg_content = msg_subj + msg.body
     if DEBUG:
         print("Got msg:\n", "~"*24)
         #print(msg_content[:50])
@@ -54,7 +74,9 @@ def parse_msg(msg_file_path):
     return msg, msg_content
 
 def get_sender_email(msg):
-    sender_email = msg.sender
+    sender_email_raw = msg.sender
+    pattern = re.compile('<(.*)>')
+    sender_email  = pattern.findall(sender_email_raw)
     if DEBUG:
         print("Got sender:")
         print(sender_email)
@@ -64,36 +86,76 @@ def judge_if_direct_counterpart(sender_email):
     direct_counterpart = True
     return direct_counterpart
 
-def retrieve_vessel(msg_content, vessels_c):
-    vessels_name = vessels_c.findall(msg_content)
+def retrieve_vessel(msg_content, vessels_pattern):
+    vessels_name = []
+    vessels_name_raw = vessels_pattern.findall(msg_content)
+    if len(vessels_name_raw) == 0:
+        pass
+    else:
+        for i in vessels_name_raw:
+            for j in i:
+                if j != '':
+                    vessels_name.append(j.strip(' '))
+    order = vessels_name.index
+    vessels_name = list(set(vessels_name))
+    vessels_name.sort(key=order)
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
-    tmp = re.compile(r'skype', re.I)
-    tmp_id = tmp.search(msg_content)
-    if tmp_id:
-        print("\n"+msg_content[tmp_id.span()[0]-15: tmp_id.span()[1]+15])
-    #Skype : xxxx
-    pattern1 = '[\(]?skype[\)]?[ ]?[ ]?[ ]?[:]?([ 0-9a-z_\-:\.@]+)'
+    skypes_id = []
+    #tmp = re.compile('skype', re.I)
+    #tt = tmp.search(msg_content)
+    #if tt:
+    #    print(msg_content[tt.span()[0]-min(25,tt.span()[0]-1):tt.span()[1]+25])
+    patterns = []
     #skype id : xxx
-    pattern2 = 'skype[ ]*id[ ]*:([ 0-9a-z_\-:\.@]+)'
-    #skpye msn :xx
-    pattern3 = 'skype/msn[ ]*:([ 0-9a-z_\-:\.@]+)'
-    all_patterns = '|'.join([pattern1, pattern2, pattern3])
+    patterns.append('skype \(live\)[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype/msn[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skypeid[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype id[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('\(skypeid\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('\(skype id\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype id\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skypeid\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype[ ]*[:]?[]*\+[ ]?([ 0-9a-z_\-:\.@]+)')
+    patterns.append('\(skype\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('([0-9a-z_\-:\.@]+)\(skypeid\)')
+    patterns.append('([0-9a-z_\-:\.@]+)\(skype id\)')
+    patterns.append('([0-9a-z_\-:\.@]+)\(skype\)')
+    patterns.append('skype\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    #Skype : xxxx
+    patterns.append('skype[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    all_patterns = '|'.join(patterns)
     c = re.compile(all_patterns, re.I)
-    skypes_id = c.findall(msg_content)
-    if tmp_id:
+    skypes_id_raw = c.findall(msg_content)
+    skypes_id = []
+    if len(skypes_id_raw) == 0:
+        pass
+    else:
+        for i in skypes_id_raw:
+            for j in i:
+                if j != '':
+                    skypes_id.append(j.strip(' ').strip(':'))
+    order = skypes_id.index
+    skypes_id = list(set(skypes_id))
+    skypes_id.sort(key=order)
+    if DEBUG:
         print("Got skype:")
         print(skypes_id)
+    while '' in skypes_id:skypes_id.remove('')
     return skypes_id
 
 def parse_blob(vessels_name, sender_email, skypes_id):
-    blob = []
-    if DEBUG:
-        print("Got blob:", blob)
+    blob = {'MV':[], 'EMAIL':sender_email, 'SKYPE':[]}
+    if (len(vessels_name)+len(skypes_id))==0:
+        pass
+    else:
+        blob['MV'] = vessels_name
+        blob['SKYPE'] = skypes_id
+        print(yaml.dump(blob))
     return blob
 
 def get_counterparts_repository():
@@ -129,10 +191,10 @@ def get_vessels_repository():
     tail = ')[^A-Za-z0-9]'
     pattern3 = head+'|'.join(unsafe_name)+tail
     #Not in repository:  mv
-    extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ ]?[A-Za-z0-9]*)[\'|\"]?'
+    extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
     all_patterns = '|'.join([pattern1, pattern2, pattern3, extra_MV_patterns])
-    vessels_c = re.compile(r'%s'%all_patterns)
-    return vessels_repository, vessels_c
+    vessels_pattern = re.compile(r'%s'%all_patterns)
+    return vessels_repository, vessels_pattern
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -140,18 +202,19 @@ if __name__ == "__main__":
 
     #Config:
     DEBUG = True
-    #DEBUG = False
+    DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
 
     #Repos:
     couterparts_repository = get_counterparts_repository()
-    vessels_repository, vessels_c = get_vessels_repository()
+    vessels_repository, vessels_pattern = get_vessels_repository()
 
     #Loop over msgs:
     num_of_failures = 0
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
+    #for this_msg_file in msg_files:
         if DEBUG:
             print("\nIn file %s: "%this_msg_file)
         try:
@@ -162,9 +225,10 @@ if __name__ == "__main__":
             continue
         sender_email = get_sender_email(msg)
         if judge_if_direct_counterpart(sender_email) is True:
-            vessels_name = retrieve_vessel(msg_content, vessels_c)
+            vessels_name = retrieve_vessel(msg_content, vessels_pattern)
             skypes_id = retrieve_skype(msg_content)
             blob = parse_blob(vessels_name, sender_email, skypes_id)
+            embed()
         else:
             print("Not direct couterpart: %s"%sender_email)
 
