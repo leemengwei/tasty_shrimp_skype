@@ -70,7 +70,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
     def auto_timeout_getMsgs(commander_id):
         chat_messages = sk.contacts[commander_id].chat.getMsgs()
         return chat_messages
-    while 1:
+    while 1: #never giveup commander
         n = 0
         while (n<5): 
             n += 1
@@ -83,9 +83,9 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
                 time.sleep(0.5)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
-                if "Response" in str(last_e):
-                    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
-                    return []
+                #if "Response" in str(last_e) and '40' in str(last_e):
+                #    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
+                #    return []
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
 
@@ -109,9 +109,9 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
-                if "Response" in str(last_e):
-                    print("Cannot receive by id:", this_id, 'due to %s'%last_e)
-                    return
+                #if "Response" in str(last_e):
+                #    print("Cannot receive by id:", this_id, 'due to %s'%last_e)
+                #    return
                 sk.conn.verifyToken(sk.conn.tokens)
         #If still can't chat for times
         print("Doing re-log in Due to: %s"%last_e)
