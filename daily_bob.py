@@ -56,7 +56,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
             sys.stdout.flush()
             try:
                 blob = auto_timeout_getblob(sk, this_id)
-                return sk, blob
+                return blob, sk
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
@@ -70,15 +70,15 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
     def auto_timeout_getMsgs(commander_id):
         chat_messages = sk.contacts[commander_id].chat.getMsgs()
         return chat_messages
-    while 1: #never giveup commander
+    while 1:
         n = 0
         while (n<5): 
             n += 1
-            print("Relent getting command, retry:%s"%n)
+            print("Relent getting command %s, retry:%s"%(commander_id, n))
             sys.stdout.flush()
             try:
                 chat_messages = auto_timeout_getMsgs(commander_id)
-                return chat_messages
+                return chat_messages, sk
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
@@ -86,11 +86,11 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
                 #if "Response" in str(last_e) and '40' in str(last_e):
                 #    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
                 #    return []
-        print("Doing re-log in Due to: %s"%last_e)
-        sk = relentless_login_web_skype(username, password, sleep=3)
+        print("Doing re-log (rest first) in Due to: %s"%last_e)
+        sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
 @flusher
-def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
+def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
    @timeout_decorator.timeout(WAIT_TIME)
    def auto_timeout_chat(message):
        blob.chat.sendMsg(message)
@@ -99,7 +99,7 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
    while give_up<2: 
         give_up += 1
         n = 0
-        while (n<10):
+        while (n<2):
             print("Relent chating, retry:%s"%n)
             sys.stdout.flush()
             n += 1
@@ -116,14 +116,15 @@ def relentlessly_chat_by_blob(sk, blob, message, username, password, this_id):
         #If still can't chat for times
         print("Doing re-log in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=3)
-        sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
-   
+        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
+   print("Given up on %s"%this_id)
+
 @flusher
 def check_invalid_account(sk, all_target_people):
     print("Checking invalid account...")
     for idx,i in tqdm.tqdm(enumerate(all_target_people)):
         print(idx)
-        sk, blob = relentlessly_get_blob_by_id(sk, i)
+        blob, sk = relentlessly_get_blob_by_id(sk, i)
         if blob is None:
             print("Removing invalid %s"%i)
             sys.stdout.flush()
@@ -173,7 +174,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
         data = {'id':all_target_people, 'name':None, 'location':None, 'language':None, 'avatar':None, 'mood':None, 'phones':None, 'birthday':None, 'authorised':None, 'blocked':None, 'favourite':None, "contents":None, "chat_times_sent":0, 'times':None, 'misc':None}
         pd_blobs = pd.DataFrame(data)
         for each_id in tqdm.tqdm(all_target_people):
-            sk, blob = relentlessly_get_blob_by_id(sk, each_id, username, password)
+            blob, sk = relentlessly_get_blob_by_id(sk, each_id, username, password)
             if blob is None:
                 continue
             which_row = pd_blobs[pd_blobs.id==each_id].index
@@ -193,7 +194,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
         pd_blobs_missed = pd.DataFrame(data)
         print("Updating misses:", missed_targets)
         for each_id in tqdm.tqdm(missed_targets):
-            sk, blob = relentlessly_get_blob_by_id(sk, each_id, username, password)
+            blob, sk = relentlessly_get_blob_by_id(sk, each_id, username, password)
             if blob is None:
                 continue
             which_row = pd_blobs_missed[pd_blobs_missed.id==each_id].index
@@ -215,12 +216,11 @@ def send_messages_simple(sk, all_target_people, external_content):
         this_info = "Hi,\n%s"%(external_content)
         print("Now on: %s"%this_id)
         sys.stdout.flush()
-        sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
+        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
         if blob is None:
             continue
         else:
-            #Normal mode:
-            relentlessly_chat_by_blob(sk, blob, this_info, username, password, this_id)
+            max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
             print("Message sent for %s:%s"%(this_id, this_info))
     return
 
@@ -234,7 +234,7 @@ def send_messages(sk, pd_blobs, external_content=None):
         this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s,\n%s"%(this_name, external_content)
         print("Now on: %s"%this_name)
         sys.stdout.flush()
-        sk, blob = relentlessly_get_blob_by_id(sk, this_id, username, password)
+        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
         if blob is None:
             continue
         else:
@@ -244,15 +244,22 @@ def send_messages(sk, pd_blobs, external_content=None):
             n = 0
             while PRESSURE_TEST:
                 message = "Pressure test...%s"%n
-                relentlessly_chat_by_blob(sk, blob, message, username, password, this_id)
+                max_giveup_chat_by_blob(sk, blob, message, username, password, this_id)
                 pd_blobs.chat_times_sent.iat[row] += 1
                 n += 1
                 print("Message sent for %s:%s"%(this_id, message))
             #Normal mode:
-            relentlessly_chat_by_blob(sk, blob, this_info, username, password, this_id)
+            max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
             pd_blobs.chat_times_sent.iat[row] += 1
             print("Message sent for %s:%s"%(this_id, this_info))
     return
+
+def ignore_old(sk, commander_ids, username, password):
+    for commander_id in commander_ids:
+        tmp = ['old_messages']
+        while len(tmp)>0:
+            tmp, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
+        print("Old messages with %s ignored."%commander_id)
 
 @flusher
 def misc():
@@ -332,16 +339,11 @@ if __name__ == "__main__":
 
     #Wait signal:
     commander_ids = ['live:892bfe64f9296876', 'live:mengxuan_9', me_id]
-    for commander_id in commander_ids:
-        tmp = ['old_messages']
-        while len(tmp)>0:
-            tmp = relentlessly_get_commander_message(sk, commander_id, username, password)
-            print("Old messages ignored.")
-    print("Old messages ignored.")
+    ignore_old(sk, commander_ids, username, password)
     while 1:
         chat_messages = []
         for commander_id in commander_ids:
-            chat_messages += relentlessly_get_commander_message(sk, commander_id, username, password)
+            chat_messages, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
         print("%s new messages with commander"%len(chat_messages), chat_messages)
         for message_this in chat_messages:
             if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids):
@@ -350,6 +352,8 @@ if __name__ == "__main__":
                 #Send for every one:
                 #send_messages(sk, pd_blobs, external_content = daily_report)
                 send_messages_simple(sk, all_target_people, external_content = daily_report)
+                #then empty commanders message:
+                ignore_old(sk, commander_ids, username, password)
 
         time.sleep(5)
    
