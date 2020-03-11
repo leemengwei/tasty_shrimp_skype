@@ -1,11 +1,14 @@
 # Byte-compiled / optimized / DLL files
+*.csv
+*.xlsx
+*.xls
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
 # C extensions
 *.so
-
+*.swp
 # Distribution / packaging
 .Python
 build/

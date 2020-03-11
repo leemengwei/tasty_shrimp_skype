@@ -8,6 +8,7 @@ import extract_msg
 #import openpyxl
 import xlrd
 import yaml
+from collections import Counter
 
 SKYPE_TESTER = \
 '''
@@ -58,6 +59,38 @@ README = \
 *************************************
 
 '''
+def get_vessels_repository_and_patterns():
+    workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
+    vessels_repository_raw = []
+    for sheet in workbook.sheet_names():
+        table = workbook.sheet_by_name(sheet)
+        vessels_repository_raw += table.col_values(1)[1:]
+    vessels_repository = list(set(vessels_repository_raw))
+    vessels_repository.sort(key=vessels_repository_raw.index)
+    safe_name = []
+    unsafe_name = []
+    for vessel in vessels_repository:
+        if ' ' in vessel or '.' in vessel or '-' in vessel:
+            safe_name.append(vessel)
+        else:
+            unsafe_name.append(vessel)
+    #Use raw name for safe:
+    head = '('
+    tail = ')[^A-Za-z0-9]'
+    pattern1 = head+'|'.join(safe_name)+tail
+    #Mv m.v m/v added for unsafe:
+    head = '[M|m][.|/]?[V|v][.|/:]? [\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern2 = head+'|'.join(unsafe_name)+tail
+    #Porpose propse purpose pps ppse offer for:
+    head = '[Pp][Uu|Rr]?[Rr|Oo]*[Pp][Oo]?[Ss][Ee]?|[Oo]ffer|OFFER [Ff][Oo][Rr][ :\\n\\r\\t]*[\'|\"]?('
+    tail = ')[^A-Za-z0-9]'
+    pattern3 = head+'|'.join(unsafe_name)+tail
+    #Not in repository:  mv
+    #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
+    all_patterns = '|'.join([pattern1, pattern2, pattern3])
+    vessels_pattern = re.compile(r'%s'%all_patterns)
+    return vessels_repository, vessels_pattern
 
 
 def parse_msg(msg_file_path):
@@ -148,14 +181,24 @@ def retrieve_skype(msg_content):
     while '' in skypes_id:skypes_id.remove('')
     return skypes_id
 
-def parse_blob(vessels_name, sender_email, skypes_id):
-    blob = {'MV':[], 'EMAIL':sender_email, 'SKYPE':[]}
+def retrieve_pic_mailboxes(msg_content):
+    pattern = re.compile('([A-Za-z0-9\.]+@[A-Za-z0-9\.]+)')
+    pic_mailboxes  = pattern.findall(msg_content)
+    if DEBUG:
+        print("Got PICmailboxes:")
+        print(pic_mailboxes)
+    return pic_mailboxes
+
+
+def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
+    blob = {'MV':[], 'SENDER':sender_email, 'SKYPE':[], 'PIC':[]}
     if (len(vessels_name)+len(skypes_id))==0:
         pass
     else:
         blob['MV'] = vessels_name
         blob['SKYPE'] = skypes_id
-        print(yaml.dump(blob))
+        blob['PIC'] = pic_mailboxes
+        #print(yaml.dump(blob))
     return blob
 
 def get_counterparts_repository():
@@ -163,38 +206,6 @@ def get_counterparts_repository():
     couterparts_repository = []
     return couterparts_repository
 
-def get_vessels_repository():
-    workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
-    vessels_repository_raw = []
-    for sheet in workbook.sheet_names():
-        table = workbook.sheet_by_name(sheet)
-        vessels_repository_raw += table.col_values(1)[1:]
-    vessels_repository = list(set(vessels_repository_raw))
-    vessels_repository.sort(key=vessels_repository_raw.index)
-    safe_name = []
-    unsafe_name = []
-    for vessel in vessels_repository:
-        if ' ' in vessel or '.' in vessel or '-' in vessel:
-            safe_name.append(vessel)
-        else:
-            unsafe_name.append(vessel)
-    #Use raw name for safe:
-    head = '('
-    tail = ')[^A-Za-z0-9]'
-    pattern1 = head+'|'.join(safe_name)+tail
-    #Mv m.v m/v added for unsafe:
-    head = '[M|m][.|/]?[V|v][.|/:]? [\'|\"]?('
-    tail = ')[^A-Za-z0-9]'
-    pattern2 = head+'|'.join(unsafe_name)+tail
-    #Porpose propse purpose pps ppse offer for:
-    head = '[Pp][Uu|Rr]?[Rr|Oo]*[Pp][Oo]?[Ss][Ee]?|[Oo]ffer|OFFER [Ff][Oo][Rr][ :\\n\\r\\t]*[\'|\"]?('
-    tail = ')[^A-Za-z0-9]'
-    pattern3 = head+'|'.join(unsafe_name)+tail
-    #Not in repository:  mv
-    extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
-    all_patterns = '|'.join([pattern1, pattern2, pattern3, extra_MV_patterns])
-    vessels_pattern = re.compile(r'%s'%all_patterns)
-    return vessels_repository, vessels_pattern
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -208,12 +219,14 @@ if __name__ == "__main__":
 
     #Repos:
     couterparts_repository = get_counterparts_repository()
-    vessels_repository, vessels_pattern = get_vessels_repository()
+    vessels_repository, vessels_pattern = get_vessels_repository_and_patterns()
 
     #Loop over msgs:
     num_of_failures = 0
     failure_list = []
-    for this_msg_file in tqdm.tqdm(msg_files):
+    MV_SENDER_BLOB = {}
+    SENDER_PIC_BLOB = {}
+    for this_msg_file in tqdm.tqdm(msg_files[:100]):
     #for this_msg_file in msg_files:
         if DEBUG:
             print("\nIn file %s: "%this_msg_file)
@@ -227,13 +240,39 @@ if __name__ == "__main__":
         if judge_if_direct_counterpart(sender_email) is True:
             vessels_name = retrieve_vessel(msg_content, vessels_pattern)
             skypes_id = retrieve_skype(msg_content)
-            blob = parse_blob(vessels_name, sender_email, skypes_id)
-            embed()
+            pic_mailboxes = retrieve_pic_mailboxes(msg_content)
+            blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
+            #PARSE BONGINDG BLOB:
+            for mv in blob['MV']:
+                if mv in MV_SENDER_BLOB.keys():
+                    MV_SENDER_BLOB[mv] += blob['SENDER']
+                else:
+                    MV_SENDER_BLOB[mv] = blob['SENDER']
+            for sender in blob['SENDER']:
+                if sender in SENDER_PIC_BLOB.keys():
+                    SENDER_PIC_BLOB[sender] += blob['PIC']
+                else:
+                    SENDER_PIC_BLOB[sender] = blob['PIC']
         else:
             print("Not direct couterpart: %s"%sender_email)
 
+        #Sets over BLOB:
+        for mv in MV_SENDER_BLOB.keys():
+            MV_SENDER_BLOB[mv] = MV_SENDER_BLOB[mv][0]
+        for sender in SENDER_PIC_BLOB.keys():
+            SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
+
     print("Failures %s:"%num_of_failures, failure_list)
 
+
+    #Get:
+    data_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
+    data_SENDER_PIC = pd.DataFrame({'SENDER':list(SENDER_PIC_BLOB.keys()), 'PIC':list(SENDER_PIC_BLOB.values())})
+    data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
+    data_SENDER_PIC.to_csv('output/core_SENDER_PIC.csv', index=False)
+
+
+    embed()
 
 
 
