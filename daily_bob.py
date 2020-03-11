@@ -61,8 +61,8 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
                 time.sleep(0.5)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
-        print("Doing re-log in Due to: %s"%last_e)
-        sk = relentless_login_web_skype(username, password, sleep=3)
+        print("Doing re-log (get blob) in Due to: %s"%last_e)
+        sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
 @flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
@@ -77,7 +77,11 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
             print("Relent getting command %s, retry:%s"%(commander_id, n))
             sys.stdout.flush()
             try:
-                chat_messages = auto_timeout_getMsgs(commander_id)
+                tmp = auto_timeout_getMsgs(commander_id)
+                chat_messages = tmp
+                while len(tmp)>0:    #for each commander, get ALL its messages.
+                    tmp = auto_timeout_getMsgs(commander_id)
+                    chat_messages += tmp
                 return chat_messages, sk
             except Exception as e:
                 time.sleep(0.5)
@@ -86,7 +90,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
                 #if "Response" in str(last_e) and '40' in str(last_e):
                 #    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
                 #    return []
-        print("Doing re-log (rest first) in Due to: %s"%last_e)
+        print("Doing re-log (get command) in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
 @flusher
@@ -254,13 +258,6 @@ def send_messages(sk, pd_blobs, external_content=None):
             print("Message sent for %s:%s"%(this_id, this_info))
     return
 
-def ignore_old(sk, commander_ids, username, password):
-    for commander_id in commander_ids:
-        tmp = ['old_messages']
-        while len(tmp)>0:
-            tmp, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
-        print("Old messages with %s ignored."%commander_id)
-
 @flusher
 def misc():
     #person_talk_to = {}
@@ -339,22 +336,21 @@ if __name__ == "__main__":
 
     #Wait signal:
     commander_ids = ['live:892bfe64f9296876', 'live:mengxuan_9', me_id]
-    ignore_old(sk, commander_ids, username, password)
+    #ignore_old(sk, commander_ids, username, password)
     while 1:
-        chat_messages = []
         for commander_id in commander_ids:
             chat_messages, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
-        print("%s new messages with commander"%len(chat_messages), chat_messages)
-        for message_this in chat_messages:
-            if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids):
-                daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
-                print("Token caught")
-                #Send for every one:
-                #send_messages(sk, pd_blobs, external_content = daily_report)
-                send_messages_simple(sk, all_target_people, external_content = daily_report)
-                #then empty commanders message:
-                ignore_old(sk, commander_ids, username, password)
-
+            print("%s new messages with commander"%len(chat_messages), commander_id)
+            #Whether signal:
+            for message_this in chat_messages:
+                seconds_that_passed = (datetime.datetime.now() - message_this.time).seconds
+                if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids) and seconds_that_passed<WAIT_TIME:
+                    print("Token caught")
+                    daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
+                    #Send for every one:
+                    #send_messages(sk, pd_blobs, external_content = daily_report)
+                    send_messages_simple(sk, all_target_people, external_content = daily_report)
+                    time.sleep(WAIT_TIME)
         time.sleep(5)
    
     sys.exit()
