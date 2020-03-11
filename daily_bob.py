@@ -76,9 +76,10 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
             n += 1
             print("Relent getting command %s, retry:%s"%(commander_id, n))
             sys.stdout.flush()
+            chat_messages = []
             try:
                 tmp = auto_timeout_getMsgs(commander_id)
-                chat_messages = tmp
+                chat_messages += tmp
                 while len(tmp)>0:    #for each commander, get ALL its messages.
                     tmp = auto_timeout_getMsgs(commander_id)
                     chat_messages += tmp
@@ -335,16 +336,17 @@ if __name__ == "__main__":
     #sys.exit()
 
     #Wait signal:
-    commander_ids = ['live:892bfe64f9296876', 'live:mengxuan_9', me_id]
+    commander_ids = ['live:mengxuan_9', 'live:892bfe64f9296876', me_id]
     #ignore_old(sk, commander_ids, username, password)
     while 1:
         for commander_id in commander_ids:
             chat_messages, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
-            print("%s new messages with commander"%len(chat_messages), commander_id)
+            print("New messages with commander %s:"%commander_id, chat_messages)
             #Whether signal:
             for message_this in chat_messages:
-                seconds_that_passed = (datetime.datetime.now() - message_this.time).seconds
-                if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids) and seconds_that_passed<WAIT_TIME:
+                seconds_that_passed = (datetime.datetime.now() - message_this.time).days*24*3600+(datetime.datetime.now() - message_this.time).seconds - 8*3600   #Greenwich time
+                print('seconds_that_passed', seconds_that_passed)
+                if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
                     print("Token caught")
                     daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
                     #Send for every one:
