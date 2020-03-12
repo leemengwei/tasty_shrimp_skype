@@ -9,6 +9,7 @@ import extract_msg
 import xlrd
 import yaml
 from collections import Counter
+import numpy as np
 
 SKYPE_TESTER = \
 '''
@@ -115,8 +116,15 @@ def get_sender_email(msg):
         print(sender_email)
     return sender_email
 
-def judge_if_direct_counterpart(sender_email):
-    direct_counterpart = True
+def judge_if_direct_counterpart(sender_email, counterparts_repository):
+    tmp = np.array([len(re.findall(i, sender_email[0], re.I)) for i in counterparts_repository])
+    if tmp.sum()==1:
+        direct_counterpart = True
+    elif tmp.sum()>1:
+        print("Warning multiple:", np.array(counterparts_repository)[np.where(tmp!=0)[0].reshape(-1,1)].tolist(), 'in', sender_email)
+        direct_counterpart = True
+    else:
+        direct_counterpart = False
     return direct_counterpart
 
 def retrieve_vessel(msg_content, vessels_pattern):
@@ -202,9 +210,10 @@ def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
     return blob
 
 def get_counterparts_repository():
-    #couterparts_repository = open(DATA_PATH_PREFIX+"/couterparts_repository.txt", 'r').readlines()
-    couterparts_repository = []
-    return couterparts_repository
+    counterparts_repository = open(DATA_PATH_PREFIX+"/counterparts_repository.txt", 'r').readlines()
+    counterparts_repository = ''.join(counterparts_repository).split('\n')
+    counterparts_repository.remove('')
+    return counterparts_repository
 
 
 if __name__ == "__main__":
@@ -216,9 +225,9 @@ if __name__ == "__main__":
     DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
-
+    print(msg_files)
     #Repos:
-    couterparts_repository = get_counterparts_repository()
+    counterparts_repository = get_counterparts_repository()
     vessels_repository, vessels_pattern = get_vessels_repository_and_patterns()
 
     #Loop over msgs:
@@ -237,7 +246,7 @@ if __name__ == "__main__":
             failure_list.append(this_msg_file)
             continue
         sender_email = get_sender_email(msg)
-        if judge_if_direct_counterpart(sender_email) is True:
+        if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
             vessels_name = retrieve_vessel(msg_content, vessels_pattern)
             skypes_id = retrieve_skype(msg_content)
             pic_mailboxes = retrieve_pic_mailboxes(msg_content)
@@ -272,7 +281,7 @@ if __name__ == "__main__":
     data_SENDER_PIC.to_csv('output/core_SENDER_PIC.csv', index=False)
 
 
-    embed()
+    #embed()
 
 
 
