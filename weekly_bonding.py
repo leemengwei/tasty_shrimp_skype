@@ -117,6 +117,7 @@ def get_sender_email(msg):
     return sender_email
 
 def judge_if_direct_counterpart(sender_email, counterparts_repository):
+    #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email[0], re.I)) for i in counterparts_repository])
     if tmp.sum()==1:
         direct_counterpart = True
@@ -212,7 +213,10 @@ def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
 def get_counterparts_repository():
     counterparts_repository = open(DATA_PATH_PREFIX+"/counterparts_repository.txt", 'r').readlines()
     counterparts_repository = ''.join(counterparts_repository).split('\n')
-    counterparts_repository.remove('')
+    try:
+        counterparts_repository.remove('')
+    except:
+        pass
     return counterparts_repository
 
 
@@ -225,7 +229,6 @@ if __name__ == "__main__":
     DEBUG = False
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
-    print(msg_files)
     #Repos:
     counterparts_repository = get_counterparts_repository()
     vessels_repository, vessels_pattern = get_vessels_repository_and_patterns()
@@ -235,7 +238,8 @@ if __name__ == "__main__":
     failure_list = []
     MV_SENDER_BLOB = {}
     SENDER_PIC_BLOB = {}
-    for this_msg_file in tqdm.tqdm(msg_files[:100]):
+    trash_sender = []
+    for this_msg_file in tqdm.tqdm(msg_files[:]):
     #for this_msg_file in msg_files:
         if DEBUG:
             print("\nIn file %s: "%this_msg_file)
@@ -263,13 +267,15 @@ if __name__ == "__main__":
                 else:
                     SENDER_PIC_BLOB[sender] = blob['PIC']
         else:
-            print("Not direct couterpart: %s"%sender_email)
+            trash_sender.append(sender_email[0])
+            if DEBUG:
+                print("Not direct couterpart: %s"%sender_email)
 
-        #Sets over BLOB:
-        for mv in MV_SENDER_BLOB.keys():
-            MV_SENDER_BLOB[mv] = MV_SENDER_BLOB[mv][0]
-        for sender in SENDER_PIC_BLOB.keys():
-            SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
+    #Sets over BLOB:
+    for mv in MV_SENDER_BLOB.keys():
+        MV_SENDER_BLOB[mv] = MV_SENDER_BLOB[mv][0]
+    for sender in SENDER_PIC_BLOB.keys():
+        SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
 
     print("Failures %s:"%num_of_failures, failure_list)
 
@@ -277,12 +283,11 @@ if __name__ == "__main__":
     #Get:
     data_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
     data_SENDER_PIC = pd.DataFrame({'SENDER':list(SENDER_PIC_BLOB.keys()), 'PIC':list(SENDER_PIC_BLOB.values())})
+    trash_sender = pd.DataFrame({'trash_sender': trash_sender})
+    ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
     data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
     data_SENDER_PIC.to_csv('output/core_SENDER_PIC.csv', index=False)
-
-
-    #embed()
-
-
+    trash_sender.to_csv('output/trash_sender.csv', index=False)
+    ok.to_csv('output/ok.csv', index=False)
 
 
