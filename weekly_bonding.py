@@ -116,9 +116,11 @@ def get_sender_email(msg):
         print(sender_email)
     return sender_email
 
-def judge_if_direct_counterpart(sender_email, counterparts_repository):
+def judge_if_direct_counterpart_and_not_REply(msg, sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email[0], re.I)) for i in counterparts_repository])
+    if len(re.findall('re:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+        return False
     if tmp.sum()==1:
         direct_counterpart = True
     elif tmp.sum()>1:
@@ -245,12 +247,13 @@ if __name__ == "__main__":
             print("\nIn file %s: "%this_msg_file)
         try:
             msg, msg_content = parse_msg(this_msg_file)
-        except:
+        except Exception as e:
             num_of_failures += 1
             failure_list.append(this_msg_file)
+            if DEBUG:print(this_msg_file, e)
             continue
         sender_email = get_sender_email(msg)
-        if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
+        if judge_if_direct_counterpart_and_not_REply(msg, sender_email, counterparts_repository) is True:
             vessels_name = retrieve_vessel(msg_content, vessels_pattern)
             skypes_id = retrieve_skype(msg_content)
             pic_mailboxes = retrieve_pic_mailboxes(msg_content)
@@ -280,14 +283,16 @@ if __name__ == "__main__":
     print("Failures %s:"%num_of_failures, failure_list)
 
 
-    #Get:
+    #Get outputs:
     data_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
     data_SENDER_PIC = pd.DataFrame({'SENDER':list(SENDER_PIC_BLOB.keys()), 'PIC':list(SENDER_PIC_BLOB.values())})
+    data_MV_SENDER_PIC = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'PIC':list(map(SENDER_PIC_BLOB.get, MV_SENDER_BLOB.values()))})
     trash_sender = pd.DataFrame({'trash_sender': trash_sender})
     ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
     data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
     data_SENDER_PIC.to_csv('output/core_SENDER_PIC.csv', index=False)
     trash_sender.to_csv('output/trash_sender.csv', index=False)
     ok.to_csv('output/ok.csv', index=False)
+    data_MV_SENDER_PIC.to_csv('output/core_MV_SENDER_PIC.csv', index=False)
 
 

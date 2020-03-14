@@ -6,17 +6,15 @@ from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from IPython import embed
 import datetime
+import pandas as pd
 
-def parse_header(mm):
-    subject_content = """也是电脑发"""
-    mm["From"] = "<limengxuan0708@126.com>"
-    mm["To"] = "<limengxuan0708@163.com>, <mengxuan@bancosta.com>, <limengxuan0708@126.com>"
+def send_action(mail_sender, mail_receivers, subject_content, body_content):
+    #MAIN:
+    mm = MIMEMultipart('related')
+    mm["From"] = "<%s>"%mail_sender
+    mm["To"] = ', '.join(["<%s>"%i for i in mail_receivers])
     mm["Subject"] = Header(subject_content, 'utf-8')
-    return mm
-
-def parse_content(mm):
     #content:
-    body_content = "测试%s"%datetime.datetime.now()
     message_text = MIMEText(body_content, "plain", "utf-8")
     mm.attach(message_text)
     
@@ -25,13 +23,6 @@ def parse_content(mm):
     message_image = MIMEImage(image_data.read())
     image_data.close()
     #mm.attach(message_image)
-    return mm
-    
-def send_action(mail_receivers):
-    #MAIN:
-    mm = MIMEMultipart('related')
-    mm = parse_header(mm)
-    mm = parse_content(mm)
 
     #log in service:
     stp = smtplib.SMTP()
@@ -44,20 +35,31 @@ def send_action(mail_receivers):
     print("邮件发送成功")
     stp.quit()
     return
-    
+
+def get_middle_data(MIDDLE_FILE_NAME):
+    data = pd.read_csv(DATA_PATH_PREFIX+MIDDLE_FILE_NAME)
+    return data
+
 if __name__ == "__main__":
     print("Auto 126 emailing...")
     
     #CONFIGURATIONS:
+    DATA_PATH_PREFIX = './output/'
+    MIDDLE_FILE_NAME = "core_MV_SENDER_PIC_DRY_RUN.csv"
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
-    mail_license = "lmx921221"  #not password!
-    mail_receivers = ["limengxuan0708@163.com", "limengxuan0708@126.com", "mengxuan@bancosta.com"]
+    mail_license = "lmx921221"  #this is not password!
+
+    #Get data:
+    middle_data = get_middle_data(MIDDLE_FILE_NAME)
+    for i in middle_data.iterrows():
+        i = i[1]
+        mail_receivers = i.PIC.strip("[]''").split("', '")
+        subject_content = 'For M/V: %s'%i.MV
+        body_content = "测试%s"%datetime.datetime.now()
+        print("MV %s, Sending to %s"%(i.MV, mail_receivers))
+        send_action(mail_sender, mail_receivers, subject_content, body_content)
     
-    #SEND:
-    print("Will send:", mail_receivers)
-    send_action(mail_receivers)
-    
-    print("Sent!")
+    print("All done!")
     #embed()
     
