@@ -10,6 +10,8 @@ import xlrd
 import yaml
 from collections import Counter
 import numpy as np
+import argparse
+
 
 SKYPE_TESTER = \
 '''
@@ -29,6 +31,8 @@ sta1rvo(skype id)
 star22vo(skype)
 Skype: + Filippo.Gabutto
 SKYPE (live) mathewmohanchat
+Msn/Skype:Fengncl@hotmail.com
+Skype/MSn:Fengncl@hotmail.com
 '''
 
 README = \
@@ -73,24 +77,29 @@ def get_vessels_repository_and_patterns():
     for vessel in vessels_repository:
         if ' ' in vessel or '.' in vessel or '-' in vessel:
             safe_name.append(vessel)
+            for i in re.findall(r'[ ]*[0-9\.-][ ]*', vessel, re.I):
+                add_vessel = vessel.replace(i, i.strip(' '))
+                safe_name.append(add_vessel)
         else:
             unsafe_name.append(vessel)
+    safe_name.sort(key = lambda i:len(i),reverse=True)
+    unsafe_name.sort(key = lambda i:len(i),reverse=True)
     #Use raw name for safe:
-    head = '('
+    head = r'('
     tail = ')[^A-Za-z0-9]'
     pattern1 = head+'|'.join(safe_name)+tail
     #Mv m.v m/v added for unsafe:
-    head = '[M|m][.|/]?[V|v][.|/:]? [\'|\"]?('
+    head = r'[M][\.|/]?[V][\.|/:]? [\'|\"]?('
     tail = ')[^A-Za-z0-9]'
     pattern2 = head+'|'.join(unsafe_name)+tail
     #Porpose propse purpose pps ppse offer for:
-    head = '[Pp][Uu|Rr]?[Rr|Oo]*[Pp][Oo]?[Ss][Ee]?|[Oo]ffer|OFFER [Ff][Oo][Rr][ :\\n\\r\\t]*[\'|\"]?('
+    head = r'[p][u|r]?[r|o]*[p][o]?[s][e]?|offer for[ :\n\r\t]*[\'|\"]?('
     tail = ')[^A-Za-z0-9]'
     pattern3 = head+'|'.join(unsafe_name)+tail
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
     all_patterns = '|'.join([pattern1, pattern2, pattern3])
-    vessels_pattern = re.compile(r'%s'%all_patterns)
+    vessels_pattern = re.compile(r'%s'%all_patterns, re.I)
     return vessels_repository, vessels_pattern
 
 
@@ -102,9 +111,11 @@ def parse_msg(msg_file_path):
     msg_subj = msg.subject
     msg_content = msg_subj + msg.body
     if DEBUG:
-        print("Got msg:\n", "~"*24)
+        print("|"*24)
+        print("In file %s: "%f)
+        print("msg_subj:", msg_subj)
         #print(msg_content[:50])
-        print("~"*30)
+        print("|"*30)
     return msg, msg_content
 
 def get_sender_email(msg):
@@ -119,7 +130,7 @@ def get_sender_email(msg):
 def judge_if_direct_counterpart_and_not_REply(msg, sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email[0], re.I)) for i in counterparts_repository])
-    if len(re.findall('re:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+    if len(re.findall('r[e]?:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         return False
     if tmp.sum()==1:
         direct_counterpart = True
@@ -146,6 +157,9 @@ def retrieve_vessel(msg_content, vessels_pattern):
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
+    if vessels_name == 'S  ATLANTIC':
+        print("WTF????")
+        #embed()
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -157,6 +171,7 @@ def retrieve_skype(msg_content):
     patterns = []
     #skype id : xxx
     patterns.append('skype \(live\)[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('msn/skype[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
     patterns.append('skype/msn[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
     patterns.append('skypeid[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
     patterns.append('skype id[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
@@ -193,7 +208,7 @@ def retrieve_skype(msg_content):
     return skypes_id
 
 def retrieve_pic_mailboxes(msg_content):
-    pattern = re.compile('([A-Za-z0-9\.]+@[A-Za-z0-9\.]+)')
+    pattern = re.compile('([a-z0-9\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
     pic_mailboxes  = pattern.findall(msg_content)
     if DEBUG:
         print("Got PICmailboxes:")
@@ -227,24 +242,43 @@ if __name__ == "__main__":
     print(README)
 
     #Config:
-    DEBUG = True
-    DEBUG = False
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-D", '--DEBUG', action='store_true', default=False)
+    parser.add_argument("-S", '--FROM_SCRATCH', action='store_true', default=False)
+    args = parser.parse_args()
+    FROM_SCRATCH = args.FROM_SCRATCH
+    DEBUG = args.DEBUG
     DATA_PATH_PREFIX = './data/data_bonding_net/'
-    msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
+    #From scratch? Checkpoint?
+    MV_SENDER_BLOB = {}
+    SENDER_PIC_BLOB = {}
+    TRASH_SENDER = []
+    if FROM_SCRATCH:
+        print("Run from scratch, moving msgs to work place...")
+        os.system("mv %s/msgs/test/consumed/*.msg %s/msgs/test/"%(DATA_PATH_PREFIX, DATA_PATH_PREFIX))
+        checkpoint = pd.DataFrame()
+    else:
+        print("Running restart.... Loading checkpoint...")
+        restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
+        restart_SENDER_PIC = pd.read_csv("output/core_SENDER_PIC.csv")
+        TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        for i in restart_MV_SENDER.iterrows():
+            MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
+        for i in restart_SENDER_PIC.iterrows():
+            SENDER_PIC_BLOB[i[1].SENDER] = i[1].PIC.strip("[]'").split("', '")
+    #Will work on files:
+    msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/test/*.msg")
+    msg_files = msg_files[:40]
     #Repos:
     counterparts_repository = get_counterparts_repository()
     vessels_repository, vessels_pattern = get_vessels_repository_and_patterns()
+    #embed()
 
     #Loop over msgs:
     num_of_failures = 0
     failure_list = []
-    MV_SENDER_BLOB = {}
-    SENDER_PIC_BLOB = {}
-    trash_sender = []
-    for this_msg_file in tqdm.tqdm(msg_files[:]):
+    for this_msg_file in tqdm.tqdm(msg_files):
     #for this_msg_file in msg_files:
-        if DEBUG:
-            print("\nIn file %s: "%this_msg_file)
         try:
             msg, msg_content = parse_msg(this_msg_file)
         except Exception as e:
@@ -258,41 +292,47 @@ if __name__ == "__main__":
             skypes_id = retrieve_skype(msg_content)
             pic_mailboxes = retrieve_pic_mailboxes(msg_content)
             blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
-            #PARSE BONGINDG BLOB:
+            #PARSE ShARED CORE BLOB,
+            #embed()
             for mv in blob['MV']:
-                if mv in MV_SENDER_BLOB.keys():
-                    MV_SENDER_BLOB[mv] += blob['SENDER']
-                else:
-                    MV_SENDER_BLOB[mv] = blob['SENDER']
+                MV_SENDER_BLOB[mv] = blob['SENDER'][0]  #list to str
             for sender in blob['SENDER']:
                 if sender in SENDER_PIC_BLOB.keys():
                     SENDER_PIC_BLOB[sender] += blob['PIC']
+                    SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
                 else:
                     SENDER_PIC_BLOB[sender] = blob['PIC']
         else:
-            trash_sender.append(sender_email[0])
+            TRASH_SENDER.append(sender_email[0])
             if DEBUG:
                 print("Not direct couterpart: %s"%sender_email)
 
-    #Sets over BLOB:
-    for mv in MV_SENDER_BLOB.keys():
-        MV_SENDER_BLOB[mv] = MV_SENDER_BLOB[mv][0]
-    for sender in SENDER_PIC_BLOB.keys():
-        SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
+    print("Failures %s:"%num_of_failures)
 
-    print("Failures %s:"%num_of_failures, failure_list)
-
-
+    #embed()
     #Get outputs:
     data_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
     data_SENDER_PIC = pd.DataFrame({'SENDER':list(SENDER_PIC_BLOB.keys()), 'PIC':list(SENDER_PIC_BLOB.values())})
     data_MV_SENDER_PIC = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'PIC':list(map(SENDER_PIC_BLOB.get, MV_SENDER_BLOB.values()))})
-    trash_sender = pd.DataFrame({'trash_sender': trash_sender})
+    TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': TRASH_SENDER})
     ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
     data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
     data_SENDER_PIC.to_csv('output/core_SENDER_PIC.csv', index=False)
-    trash_sender.to_csv('output/trash_sender.csv', index=False)
-    ok.to_csv('output/ok.csv', index=False)
+    TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
+    ok.to_csv('output/OK.csv', index=False)
     data_MV_SENDER_PIC.to_csv('output/core_MV_SENDER_PIC.csv', index=False)
 
 
+    #To Consumed:
+    print("Core generated, now moving to consumed...")
+    for msg_file in msg_files:
+        tmp = msg_file.split('/')
+        tmp.insert(-1, 'consumed')
+        tmp = '/'.join(tmp)
+        os.rename(msg_file, tmp)
+        pass
+    #embed()
+
+
+
+    print("All finished.")

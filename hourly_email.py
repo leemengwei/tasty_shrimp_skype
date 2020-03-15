@@ -54,7 +54,7 @@ if __name__ == "__main__":
     middle_data = get_middle_data(MIDDLE_FILE_NAME)
     for i in middle_data.iterrows():
         i = i[1]
-        mail_receivers = i.PIC.strip("[]''").split("', '")
+        mail_receivers = i.PIC.strip("[]'").split("', '")
         subject_content = 'For M/V: %s'%i.MV
         body_content = "测试%s"%datetime.datetime.now()
         print("MV %s, Sending to %s"%(i.MV, mail_receivers))
