@@ -36,27 +36,39 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
     stp.quit()
     return
 
-def get_middle_data(MIDDLE_FILE_NAME):
-    data = pd.read_csv(DATA_PATH_PREFIX+MIDDLE_FILE_NAME)
+def get_middle_bond(MIDDLE_FILE_NAME):
+    data = pd.read_csv(MIDDLE_FILE_NAME)
     return data
 
+def get_body_content(CONTENT_FILE_NAME):
+    content = open(CONTENT_FILE_NAME, 'r').readlines()
+    content = ''.join(content).replace('\n', '\t\n')
+    content = subject_content + '\n' + content + '\n' + str(datetime.datetime.now()).split(' ')[0] 
+    return content
+ 
 if __name__ == "__main__":
     print("Auto 126 emailing...")
     
     #CONFIGURATIONS:
-    DATA_PATH_PREFIX = './output/'
-    MIDDLE_FILE_NAME = "core_MV_SENDER_PIC_DRY_RUN.csv"
+    MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_PIC_SKYPE_DRY_RUN.csv"
+    CONTENT_FILE_NAME = 'data/data_bonding_net/email_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
 
     #Get data:
-    middle_data = get_middle_data(MIDDLE_FILE_NAME)
-    for i in middle_data.iterrows():
+    middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
+    for i in middle_bond.iterrows():
         i = i[1]
         mail_receivers = i.PIC.strip("[]'").split("', '")
+        try:
+            mail_receivers.remove('')
+        except:
+            pass
+        if len(mail_receivers) == 0:
+            continue
         subject_content = 'For M/V: %s'%i.MV
-        body_content = "测试%s"%datetime.datetime.now()
+        body_content = get_body_content(CONTENT_FILE_NAME)
         print("MV %s, Sending to %s"%(i.MV, mail_receivers))
         send_action(mail_sender, mail_receivers, subject_content, body_content)
     

@@ -1,0 +1,5 @@
+Baltic Exchange Dry Index 529 ( +12 )Baltic Exchange Capesize Index -300 ( -10 )Baltic Exchange Panamax Index 886 ( +27 )Baltic Exchange Supramax Index 590 ( +13 )Baltic Exchange Handysize Index 322 ( +3 )
+BCI 5 T/C routes 180000 2367 +9
+BPI 5 T/C routes 82500 7972 +239
+BSI 10 T/C routes 58328 6490 +142
+BHSI 7 T/C routes 38200 5794 +58
