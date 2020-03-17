@@ -305,7 +305,7 @@ if __name__ == "__main__":
             if DEBUG:print(this_msg_file, e)
             continue
         sender_email = get_sender_email(msg)
-        if judge_if_is_not_REply(msg) is True:
+        if judge_if_is_not_REply(msg) is True and len(sender_email)>0:
             if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
                 vessels_name = retrieve_vessel(msg_content, vessels_pattern)
                 skypes_id = retrieve_skype(msg_content)
