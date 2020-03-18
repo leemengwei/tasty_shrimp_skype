@@ -11,7 +11,7 @@ import yaml
 from collections import Counter
 import numpy as np
 import argparse
-
+import shutil
 
 SKYPE_TESTER = \
 '''
@@ -98,7 +98,8 @@ def get_vessels_repository_and_patterns():
     pattern3 = head+'|'.join(unsafe_name)+tail
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
-    all_patterns = '|'.join([pattern1, pattern2, pattern3])
+    #all_patterns = '|'.join([pattern1, pattern3])
+    all_patterns = '|'.join([pattern1, pattern3, pattern2])
     vessels_pattern = re.compile(r'%s'%all_patterns, re.I)
     return vessels_repository, vessels_pattern
 
@@ -118,13 +119,18 @@ def parse_msg(msg_file_path):
         print("|"*30)
     return msg, msg_content
 
-def get_sender_email(msg):
+def retrieve_sender_email(msg):
     sender_email_raw = msg.sender
     pattern = re.compile('<(.*)>')
-    sender_email  = pattern.findall(sender_email_raw)
+    sender_email = pattern.findall(sender_email_raw)
     if DEBUG:
         print("Got sender:")
         print(sender_email)
+    if len(sender_email)>0:
+        sender_email = sender_email[0].lower()
+    else:
+        print("Error getting sender: %s"%sender_email_raw)
+        sender_email = ""
     return sender_email
 
 def judge_if_is_not_REply(msg):
@@ -134,7 +140,7 @@ def judge_if_is_not_REply(msg):
         return True
 def judge_if_direct_counterpart(sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
-    tmp = np.array([len(re.findall(i, sender_email[0], re.I)) for i in counterparts_repository])
+    tmp = np.array([len(re.findall(i, sender_email, re.I)) for i in counterparts_repository])
     if tmp.sum()==1:
         direct_counterpart = True
     elif tmp.sum()>1:
@@ -157,12 +163,13 @@ def retrieve_vessel(msg_content, vessels_pattern):
     order = vessels_name.index
     vessels_name = list(set(vessels_name))
     vessels_name.sort(key=order)
+    for idx,this_vessel_name in enumerate(vessels_name):
+        vessels_name[idx] = this_vessel_name.upper()
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
-    if vessels_name == 'S  ATLANTIC':
-        print("WTF????")
-        #embed()
+    #TODO: To fix MV CORAL and MV CORAL GEM
+    #embed()
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -204,19 +211,23 @@ def retrieve_skype(msg_content):
     order = skypes_id.index
     skypes_id = list(set(skypes_id))
     skypes_id.sort(key=order)
+    while '' in skypes_id:skypes_id.remove('')
+    for idx,this_skype_id in enumerate(skypes_id):
+        skypes_id[idx] = this_skype_id.lower()
     if DEBUG:
         print("Got skype:")
         print(skypes_id)
-    while '' in skypes_id:skypes_id.remove('')
     return skypes_id
 
 def retrieve_pic_mailboxes(msg_content, sender_email):
-    pattern = re.compile('([a-z0-9\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
+    pattern = re.compile('([a-z0-9_\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
     pic_mailboxes  = pattern.findall(msg_content)
-    pic_mailboxes += sender_email
+    pic_mailboxes += [sender_email]
     if DEBUG:
         print("Got PICmailboxes:")
         print(pic_mailboxes)
+    for idx,this_pic_mailbox in enumerate(pic_mailboxes):
+        pic_mailboxes[idx] = this_pic_mailbox.lower()
     return pic_mailboxes
 
 
@@ -253,7 +264,8 @@ if __name__ == "__main__":
     FROM_SCRATCH = args.FROM_SCRATCH
     DEBUG = args.DEBUG
     DATA_PATH_PREFIX = './data/data_bonding_net/'
-    TEST = 'test'
+    BLACKLIST_PIC = open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()
+    TEST = ''
     #From scratch? Checkpoint?
     MV_SENDER_BLOB = {}
     SENDER_PIC_BLOB = {}
@@ -261,8 +273,11 @@ if __name__ == "__main__":
     TRASH_SENDER = []
     if FROM_SCRATCH:
         print("Run from scratch, moving msgs to work place...")
-        os.system("mv %s/msgs/%s/consumed/*.msg %s/msgs/%s/"%(DATA_PATH_PREFIX, TEST, DATA_PATH_PREFIX, TEST))
-        checkpoint = pd.DataFrame()
+        #os.system("mv %s/msgs/%s/consumed/*.msg %s/msgs/%s/"%(DATA_PATH_PREFIX, TEST, DATA_PATH_PREFIX, TEST))
+        consumed_files = glob.glob("%s/msgs/%s/consumed/*.msg"%(DATA_PATH_PREFIX, TEST))
+        for this_consumed_file in consumed_files:
+            shutil.move(this_consumed_file, this_consumed_file.replace("consumed",""))
+        #checkpoint = pd.DataFrame()
     else:
         print("Running restart.... Loading checkpoint...")
         restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
@@ -304,7 +319,7 @@ if __name__ == "__main__":
             failure_list.append(this_msg_file)
             if DEBUG:print(this_msg_file, e)
             continue
-        sender_email = get_sender_email(msg)
+        sender_email = retrieve_sender_email(msg)
         if judge_if_is_not_REply(msg) is True and len(sender_email)>0:
             if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
                 vessels_name = retrieve_vessel(msg_content, vessels_pattern)
@@ -314,27 +329,26 @@ if __name__ == "__main__":
                 #PARSE ShARED CORE BLOB,
                 #embed()
                 for mv in blob['MV']:
-                    MV_SENDER_BLOB[mv] = blob['SENDER'][0]  #list to str
-                for sender in blob['SENDER']:
-                    if sender in SENDER_PIC_BLOB.keys():
-                        SENDER_PIC_BLOB[sender] += blob['PIC']
-                        SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender]))
-                    else:
-                        SENDER_PIC_BLOB[sender] = blob['PIC']
-                    if sender in SENDER_SKYPE_BLOB.keys():
-                        SENDER_SKYPE_BLOB[sender] += blob['SKYPE']
-                        SENDER_SKYPE_BLOB[sender] = list(set(SENDER_SKYPE_BLOB[sender]))
-                    else:
-                        SENDER_SKYPE_BLOB[sender] = blob['SKYPE']
+                    MV_SENDER_BLOB[mv] = blob['SENDER']  #list to str
+                sender = blob['SENDER']
+                if sender in SENDER_PIC_BLOB.keys():
+                    SENDER_PIC_BLOB[sender] += blob['PIC']
+                    SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender])-set(SENDER_SKYPE_BLOB[sender])-set(BLACKLIST_PIC))
                 else:
-                    TRASH_SENDER.append(sender_email[0])
-                    if DEBUG:
-                        print("Not direct couterpart: %s"%sender_email)
+                    SENDER_PIC_BLOB[sender] = blob['PIC']
+                if sender in SENDER_SKYPE_BLOB.keys():
+                    SENDER_SKYPE_BLOB[sender] += blob['SKYPE']
+                    SENDER_SKYPE_BLOB[sender] = list(set(SENDER_SKYPE_BLOB[sender]))
+                else:
+                    SENDER_SKYPE_BLOB[sender] = blob['SKYPE']
+            else:
+                TRASH_SENDER.append(sender_email)
+                if DEBUG:
+                    print("Not direct couterpart: %s"%sender_email)
         else:
             if DEBUG:
                 print("This is Reply! pass")
             pass
-
     print("Failures %s:"%num_of_failures)
 
     #embed()

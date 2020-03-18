@@ -1,2 +1,9 @@
+IPython
+extract_msg
 beautifulsoup4
 requests
+pandas
+tqdm
+timeout_decorator
+xlrd
+PyYAML
