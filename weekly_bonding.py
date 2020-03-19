@@ -117,6 +117,8 @@ def parse_msg(msg_file_path):
         print("msg_subj:", msg_subj)
         #print(msg_content[:50])
         print("|"*30)
+    for i in re.findall(r'( <mailto:[\.A-Za-z0-9-_@:%]*> )', msg_content):
+        msg_content = msg_content.replace(i, '')
     return msg, msg_content
 
 def retrieve_sender_email(msg):
@@ -228,8 +230,10 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
         print(pic_mailboxes)
     for idx,this_pic_mailbox in enumerate(pic_mailboxes):
         pic_mailboxes[idx] = this_pic_mailbox.lower()
+    if 'DEMIREL@gnav.com'.lower() in pic_mailboxes:
+        embed()
     return pic_mailboxes
-
+REL@gnav.com'
 
 def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
     blob = {'MV':[], 'SENDER':sender_email, 'SKYPE':[], 'PIC':[]}
@@ -264,7 +268,7 @@ if __name__ == "__main__":
     FROM_SCRATCH = args.FROM_SCRATCH
     DEBUG = args.DEBUG
     DATA_PATH_PREFIX = './data/data_bonding_net/'
-    BLACKLIST_PIC = open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()
+    BLACKLIST_PIC = [i.strip('\n') for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     TEST = ''
     #From scratch? Checkpoint?
     MV_SENDER_BLOB = {}
