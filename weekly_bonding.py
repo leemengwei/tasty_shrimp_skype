@@ -233,7 +233,6 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
     if 'DEMIREL@gnav.com'.lower() in pic_mailboxes:
         embed()
     return pic_mailboxes
-REL@gnav.com'
 
 def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
     blob = {'MV':[], 'SENDER':sender_email, 'SKYPE':[], 'PIC':[]}
