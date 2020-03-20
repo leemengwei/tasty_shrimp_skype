@@ -2,4 +2,4 @@ MV,SENDER,PIC,SKYPE
 BOA 1,123@qq.com,[],[]
 BOA. 2,123@qq.com,[''],['']
 BOA. 2.5,123@qq.com,['limengxuan0708@wroffngone.com'],['live:mengxuan_wrong']
-BOA - .3,123@qq.com,['limengxuan0708@126.com'],['live:mengxuan_9']
+BOA - .3,123@qq.com,"['limengxuan0708@126.com', 'limengxuan0708@163.com', 'mengxuan@bancosta.com']",['live:mengxuan_9']

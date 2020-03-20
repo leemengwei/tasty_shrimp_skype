@@ -12,7 +12,7 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
     #MAIN:
     mm = MIMEMultipart('related')
     mm["From"] = "<%s>"%mail_sender
-    mm["To"] = ', '.join(["<%s>"%i for i in mail_receivers])
+    mm["BCC"] = ', '.join(["<%s>"%i for i in mail_receivers])
     mm["Subject"] = Header(subject_content, 'utf-8')
     #content:
     message_text = MIMEText(body_content, "plain", "utf-8")
@@ -31,6 +31,7 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
     stp.login(mail_sender,mail_license)
 
     #send:
+    #embed()
     stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     print("Done sent!!")
     stp.quit()
@@ -59,7 +60,6 @@ if __name__ == "__main__":
     #Get data:
     middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
     for i in middle_bond.iterrows():
-        embed()
         i = i[1]
         mail_receivers = i.PIC.strip("[]'").split("', '")
         try:
