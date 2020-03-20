@@ -32,7 +32,7 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
 
     #send:
     stp.sendmail(mail_sender, mail_receivers, mm.as_string())
-    print("邮件发送成功")
+    print("Done sent!!")
     stp.quit()
     return
 
