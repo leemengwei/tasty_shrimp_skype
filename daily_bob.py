@@ -98,7 +98,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
 def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
    @timeout_decorator.timeout(WAIT_TIME)
    def auto_timeout_chat(message):
-       blob.chat.sendMsg(message)
+       #blob.chat.sendMsg(message)
        return
    give_up = 0
    while give_up<2: 
@@ -157,15 +157,7 @@ def get_all_target_people(sk, username, additional_contacts_path, remove_contact
     additional_contacts = ''.join(additional_contacts).split('\n')[:]
     removed_contacts = open(remove_contacts_path, 'r').readlines()
     removed_contacts = ''.join(removed_contacts).split('\n')[:]
-    all_target_people = additional_contacts
-    #all_target_people = all_contacts + additional_contacts
-    all_target_people = list(set(all_target_people))
-    for i in removed_contacts:
-        try:
-            print("Removing:%s"%i)
-            all_target_people.remove(i)
-        except:
-            pass
+    all_target_people = list(set(all_contacts)&set(additional_contacts) - set(removed_contacts))
     if CHECK_CONTACTS_VALID:
         all_target_people = check_invalid_account(sk, all_target_people)
     print("%s people returned,%s people removed"%(len(all_target_people), len(removed_contacts)))
@@ -291,7 +283,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    DRY_RUN = True
+    #DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -353,7 +345,7 @@ if __name__ == "__main__":
                     #send_messages(sk, pd_blobs, external_content = daily_report)
                     send_messages_simple(sk, all_target_people, external_content = daily_report)
                     time.sleep(WAIT_TIME)
-        time.sleep(5)
+        time.sleep(7)
    
     sys.exit()
    
