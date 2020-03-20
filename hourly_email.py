@@ -19,9 +19,9 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
     mm.attach(message_text)
     
     #attach a jpg
-    image_data = open('data/portrait.jpg', 'rb')
-    message_image = MIMEImage(image_data.read())
-    image_data.close()
+    #image_data = open('data/portrait.jpg', 'rb')
+    #message_image = MIMEImage(image_data.read())
+    #image_data.close()
     #mm.attach(message_image)
 
     #log in service:
@@ -59,6 +59,7 @@ if __name__ == "__main__":
     #Get data:
     middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
     for i in middle_bond.iterrows():
+        embed()
         i = i[1]
         mail_receivers = i.PIC.strip("[]'").split("', '")
         try:

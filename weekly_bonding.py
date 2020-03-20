@@ -334,7 +334,6 @@ if __name__ == "__main__":
                 sender = blob['SENDER']
                 if sender in SENDER_PIC_BLOB.keys():
                     SENDER_PIC_BLOB[sender] += blob['PIC']
-                    SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender])-set(SENDER_SKYPE_BLOB[sender])-set(BLACKLIST_PIC))
                 else:
                     SENDER_PIC_BLOB[sender] = blob['PIC']
                 if sender in SENDER_SKYPE_BLOB.keys():
@@ -350,6 +349,9 @@ if __name__ == "__main__":
             if DEBUG:
                 print("This is Reply! pass")
             pass
+    #Blacklist and -skype:
+    for sender in SENDER_PIC_BLOB.keys():
+        SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender])-set(SENDER_SKYPE_BLOB[sender])-set(BLACKLIST_PIC))
     print("Failures %s:"%num_of_failures)
 
     #embed()
