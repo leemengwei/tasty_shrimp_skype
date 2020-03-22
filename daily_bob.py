@@ -228,7 +228,7 @@ def send_messages(sk, pd_blobs, external_content=None):
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
         this_name = pd_blobs.name[row]
-        this_info = pd_blobs.iloc[row].contents if external_content is None else "Hi %s,\n%s"%(this_name, external_content)
+        this_info = pd_blobs.iloc[row].contents if external_content is None else external_content
         print("Now on: %s"%this_name)
         sys.stdout.flush()
         blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
