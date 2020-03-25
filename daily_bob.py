@@ -98,10 +98,10 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
 def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
    @timeout_decorator.timeout(WAIT_TIME)
    def auto_timeout_chat(message):
-       #blob.chat.sendMsg(message)
+       blob.chat.sendMsg(message)
        return
    give_up = 0
-   while give_up<2: 
+   while give_up<1: 
         give_up += 1
         n = 0
         while (n<2):
@@ -110,7 +110,7 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
             n += 1
             try:
                 auto_timeout_chat(message)
-                return
+                return sk
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
@@ -123,6 +123,7 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
         sk = relentless_login_web_skype(username, password, sleep=3)
         blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
    print("Given up on %s"%this_id)
+   return sk
 
 @flusher
 def check_invalid_account(sk, all_target_people):
@@ -210,16 +211,16 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 def send_messages_simple(sk, all_target_people, external_content):
     print("Sending messages simple...")
     for this_id in tqdm.tqdm(all_target_people):
-        this_info = "Hi,\n%s"%(external_content)
+        this_info = external_content
         print("Now on: %s"%this_id)
         sys.stdout.flush()
         blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
         if blob is None:
             continue
         else:
-            max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
+            sk = max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
             print("Message sent for %s:%s"%(this_id, this_info))
-    return
+    return sk
 
 
 @flusher
@@ -241,15 +242,15 @@ def send_messages(sk, pd_blobs, external_content=None):
             n = 0
             while PRESSURE_TEST:
                 message = "Pressure test...%s"%n
-                max_giveup_chat_by_blob(sk, blob, message, username, password, this_id)
+                sk = max_giveup_chat_by_blob(sk, blob, message, username, password, this_id)
                 pd_blobs.chat_times_sent.iat[row] += 1
                 n += 1
                 print("Message sent for %s:%s"%(this_id, message))
             #Normal mode:
-            max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
+            sk = max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
             pd_blobs.chat_times_sent.iat[row] += 1
             print("Message sent for %s:%s"%(this_id, this_info))
-    return
+    return sk
 
 @flusher
 def misc():
@@ -283,7 +284,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    #DRY_RUN = True
+    DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -342,8 +343,8 @@ if __name__ == "__main__":
                     print("Token caught")
                     daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
                     #Send for every one:
-                    #send_messages(sk, pd_blobs, external_content = daily_report)
-                    send_messages_simple(sk, all_target_people, external_content = daily_report)
+                    #sk = send_messages(sk, pd_blobs, external_content = daily_report)
+                    sk = send_messages_simple(sk, all_target_people, external_content = daily_report)
                     time.sleep(WAIT_TIME)
         time.sleep(7)
    
