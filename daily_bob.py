@@ -7,6 +7,7 @@ import tqdm
 import time
 import datetime
 import timeout_decorator
+from multiprocessing.pool import Pool
 
 def flusher(fun):
     print("In function: ", fun.__name__)
@@ -126,6 +127,22 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
    return sk
 
 @flusher
+def ideal_pool_chat_by_blob(struct):
+    @timeout_decorator.timeout(WAIT_TIME)
+    def auto_timeout_blob_and_chat(skype_id, message):
+        blob = sk.contacts[skype_id]
+        print("Pool Sending to %s (%s)"%(blob.name, skype_id))
+        blob.chat.sendMsg(message)
+        return
+    skype_id, message, sk = struct[0], struct[1], struct[2]
+    try:
+        auto_timeout_blob_and_chat(skype_id, message)
+        return True
+    except Exception as e:
+        print("When sending %s,"%blob.name, e)
+        return False
+
+@flusher
 def check_invalid_account(sk, all_target_people):
     print("Checking invalid account...")
     for idx,i in tqdm.tqdm(enumerate(all_target_people)):
@@ -207,8 +224,17 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
         print("contacts_profile updated...")
     return pd_blobs
 
+def messages_wrapper_pool(sk, all_target_people, external_content):
+    pool = Pool(processes=100)
+    struct_list = []
+    for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
+        struct_list.append([i,j,k])
+    struct_list = struct_list*10
+    status = pool.map(ideal_pool_chat_by_blob, struct_list)
+    embed()
+
 @flusher
-def send_messages_simple(sk, all_target_people, external_content):
+def messages_wrapper_simple(sk, all_target_people, external_content):
     print("Sending messages simple...")
     for this_id in tqdm.tqdm(all_target_people):
         this_info = external_content
@@ -224,7 +250,7 @@ def send_messages_simple(sk, all_target_people, external_content):
 
 
 @flusher
-def send_messages(sk, pd_blobs, external_content=None):
+def messages_wrapper_old(sk, pd_blobs, external_content=None):
     print("Sending messages...")
     for row in tqdm.tqdm(range(len(pd_blobs))):
         this_id = pd_blobs.iloc[row].id
@@ -284,7 +310,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    DRY_RUN = True
+    #DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -334,17 +360,19 @@ if __name__ == "__main__":
     while 1:
         for commander_id in commander_ids:
             chat_messages, sk = relentlessly_get_commander_message(sk, commander_id, username, password)
-            print("New messages with commander %s:"%commander_id, chat_messages)
+            #print("New messages with commander %s:"%commander_id, chat_messages)
             #Whether signal:
             for message_this in chat_messages:
                 seconds_that_passed = (datetime.datetime.now() - message_this.time).days*24*3600+(datetime.datetime.now() - message_this.time).seconds - 8*3600   #Greenwich time
-                print('seconds_that_passed', seconds_that_passed)
+                #print('seconds_that_passed', seconds_that_passed)
                 if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
                     print("Token caught")
-                    daily_report = message_this.content.strip("TOKEN").replace("TOKEN",'')
+                    daily_report = message_this.content.replace("TOKEN",'')
                     #Send for every one:
-                    #sk = send_messages(sk, pd_blobs, external_content = daily_report)
-                    sk = send_messages_simple(sk, all_target_people, external_content = daily_report)
+                    #sk = messages_wrapper_old(sk, pd_blobs, external_content = daily_report)
+                    sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
+                    #messages_wrapper_pool(sk, all_target_people, external_content = daily_report)
+                    print("Now resting ...")
                     time.sleep(WAIT_TIME)
         time.sleep(7)
    
