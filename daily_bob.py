@@ -231,7 +231,6 @@ def messages_wrapper_pool(sk, all_target_people, external_content):
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
-    struct_list = struct_list*10
     n = 0
     while n<5 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
