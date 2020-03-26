@@ -8,6 +8,7 @@ import time
 import datetime
 import timeout_decorator
 from multiprocessing.pool import Pool
+import numpy as np
 
 def flusher(fun):
     print("In function: ", fun.__name__)
@@ -139,7 +140,7 @@ def ideal_pool_chat_by_blob(struct):
         auto_timeout_blob_and_chat(skype_id, message)
         return True
     except Exception as e:
-        print("When sending %s,"%blob.name, e)
+        print("When sending %s,"%skype_id, e)
         return False
 
 @flusher
@@ -225,14 +226,19 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
     return pd_blobs
 
 def messages_wrapper_pool(sk, all_target_people, external_content):
-    pool = Pool(processes=100)
+    #sk = relentless_login_web_skype(username, password, sleep=0):
+    pool = Pool(processes=10)
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
     struct_list = struct_list*10
-    status = pool.map(ideal_pool_chat_by_blob, struct_list)
-    embed()
-
+    n = 0
+    while n<5 and len(struct_list)>0:
+        status = pool.map(ideal_pool_chat_by_blob, struct_list)
+        struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
+        print("Remaining (retrying on):", struct_list)
+        n += 1
+    print("Failure (given up) struct:", struct_list)
 @flusher
 def messages_wrapper_simple(sk, all_target_people, external_content):
     print("Sending messages simple...")
@@ -249,34 +255,34 @@ def messages_wrapper_simple(sk, all_target_people, external_content):
     return sk
 
 
-@flusher
-def messages_wrapper_old(sk, pd_blobs, external_content=None):
-    print("Sending messages...")
-    for row in tqdm.tqdm(range(len(pd_blobs))):
-        this_id = pd_blobs.iloc[row].id
-        this_name = pd_blobs.name[row]
-        this_info = pd_blobs.iloc[row].contents if external_content is None else external_content
-        print("Now on: %s"%this_name)
-        sys.stdout.flush()
-        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
-        if blob is None:
-            continue
-        else:
-            if str(blob.name) == '':
-                continue
-            #Pressure test mode:
-            n = 0
-            while PRESSURE_TEST:
-                message = "Pressure test...%s"%n
-                sk = max_giveup_chat_by_blob(sk, blob, message, username, password, this_id)
-                pd_blobs.chat_times_sent.iat[row] += 1
-                n += 1
-                print("Message sent for %s:%s"%(this_id, message))
-            #Normal mode:
-            sk = max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
-            pd_blobs.chat_times_sent.iat[row] += 1
-            print("Message sent for %s:%s"%(this_id, this_info))
-    return sk
+#@flusher
+#def messages_wrapper_old(sk, pd_blobs, external_content=None):
+#    print("Sending messages...")
+#    for row in tqdm.tqdm(range(len(pd_blobs))):
+#        this_id = pd_blobs.iloc[row].id
+#        this_name = pd_blobs.name[row]
+#        this_info = pd_blobs.iloc[row].contents if external_content is None else external_content
+#        print("Now on: %s"%this_name)
+#        sys.stdout.flush()
+#        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
+#        if blob is None:
+#            continue
+#        else:
+#            if str(blob.name) == '':
+#                continue
+#            #Pressure test mode:
+#            n = 0
+#            while PRESSURE_TEST:
+#                message = "Pressure test...%s"%n
+#                sk = max_giveup_chat_by_blob(sk, blob, message, username, password, this_id)
+#                pd_blobs.chat_times_sent.iat[row] += 1
+#                n += 1
+#                print("Message sent for %s:%s"%(this_id, message))
+#            #Normal mode:
+#            sk = max_giveup_chat_by_blob(sk, blob, this_info, username, password, this_id)
+#            pd_blobs.chat_times_sent.iat[row] += 1
+#            print("Message sent for %s:%s"%(this_id, this_info))
+#    return sk
 
 @flusher
 def misc():
@@ -310,7 +316,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    #DRY_RUN = True
+    DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -370,8 +376,8 @@ if __name__ == "__main__":
                     daily_report = message_this.content.replace("TOKEN",'')
                     #Send for every one:
                     #sk = messages_wrapper_old(sk, pd_blobs, external_content = daily_report)
-                    sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
-                    #messages_wrapper_pool(sk, all_target_people, external_content = daily_report)
+                    #sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
+                    messages_wrapper_pool(sk, all_target_people, external_content = daily_report)
                     print("Now resting ...")
                     time.sleep(WAIT_TIME)
         time.sleep(7)
