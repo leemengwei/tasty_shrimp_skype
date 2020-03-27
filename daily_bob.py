@@ -134,7 +134,7 @@ def ideal_pool_chat_by_blob(struct):
         blob = sk.contacts[skype_id]
         print("Pool Sending to %s (%s)"%(blob.name, skype_id))
         sys.stdout.flush()
-        blob.chat.sendMsg(message)
+        #blob.chat.sendMsg(message)
         return
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
@@ -230,7 +230,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=10)
+    pool = Pool(processes=72)
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
@@ -388,7 +388,7 @@ if __name__ == "__main__":
                     #sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
                     sk = messages_wrapper_pool(sk, username, password, all_target_people, external_content = daily_report)
                     print("Now resting ...")
-                    time.sleep(WAIT_TIME)
+                    time.sleep(WAIT_TIME)   #TOKEN is removed , now must safe, just sleep
         time.sleep(7)
    
     sys.exit()
