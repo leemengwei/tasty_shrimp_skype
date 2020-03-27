@@ -162,7 +162,7 @@ def check_invalid_account(sk, all_target_people):
 @flusher
 def get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path):    
     if DRY_RUN:
-        dry_target_people = open("./data/%s/mengxuan.txt"%username, 'r').readlines()
+        dry_target_people = open("./data/%s/mengxuan"%username, 'r').readlines()
         dry_target_people = ''.join(dry_target_people).split('\n')[:-1]
         print("Returing dry:%s"%dry_target_people)
         sys.stdout.flush()
@@ -336,9 +336,9 @@ if __name__ == "__main__":
     password = 'Bcchina2020'
     me_id = "live:a4333d00d55551e"
 
-    additional_contacts_path = 'data/%s/saved_contacts.txt'%username
-    remove_contacts_path = 'data/%s/removed_contacts.txt'%username
-    template_file = "data/%s/content.txt"%username
+    additional_contacts_path = 'data/%s/saved_contacts'%username
+    remove_contacts_path = 'data/%s/removed_contacts'%username
+    template_file = "data/%s/content"%username
     if not os.path.exists("data/%s/"%username):
         os.mkdir("data/%s/"%username)
 
