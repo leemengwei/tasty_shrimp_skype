@@ -134,7 +134,7 @@ def ideal_pool_chat_by_blob(struct):
         blob = sk.contacts[skype_id]
         print("Pool Sending to %s (%s)"%(blob.name, skype_id))
         sys.stdout.flush()
-        #blob.chat.sendMsg(message)
+        blob.chat.sendMsg(message)
         return
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
@@ -234,7 +234,7 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
-    if PRESSURE_TEST:struct_list *= 10
+    if PRESSURE_TEST:struct_list *= 50
     n = 0
     while n<5 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
@@ -321,13 +321,13 @@ def misc():
 if __name__ == "__main__":
     WAIT_TIME = 35
     PRESSURE_TEST = False
-    PRESSURE_TEST = True
+    #PRESSURE_TEST = True
     CHECK_CONTACTS_VALID = False
     #CHECK_CONTACTS_VALID = True
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    #DRY_RUN = True
+    DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
