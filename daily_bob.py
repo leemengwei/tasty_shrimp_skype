@@ -246,6 +246,8 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
             n += 1
     if len(struct_list)>0:
         print("Failure (given up) struct:", failed_name)
+    pool.close()
+    pool.join()
     return sk
 
 @flusher
