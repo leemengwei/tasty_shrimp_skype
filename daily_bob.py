@@ -315,7 +315,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    DRY_RUN = True
+    #DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
