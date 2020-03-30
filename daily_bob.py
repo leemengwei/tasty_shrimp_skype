@@ -139,6 +139,7 @@ def ideal_pool_chat_by_blob(struct):
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
         auto_timeout_blob_and_chat(skype_id, message)
+        print("Okay", skype_id)
         return True
     except Exception as e:
         print("When sending %s,"%skype_id, e)
@@ -241,8 +242,12 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_name = np.array(struct_list)[:,0].tolist()
-            print("Remaining (retrying on):", failed_name)
+            print("Remaining (retrying on):", failed_name, n)
+            time.sleep(WAIT_TIME)
             sk = relentless_login_web_skype(username, password)
+            sk.conn.verifyToken(sk.conn.tokens)
+            for _struct_ in struct_list:
+                _struct_[-1] = sk      #Renew sk for pools after login
             n += 1
     if len(struct_list)>0:
         print("Failure (given up) struct:", failed_name)
@@ -319,7 +324,7 @@ def misc():
     return
 
 if __name__ == "__main__":
-    WAIT_TIME = 35
+    WAIT_TIME = 55
     PRESSURE_TEST = False
     #PRESSURE_TEST = True
     CHECK_CONTACTS_VALID = False
