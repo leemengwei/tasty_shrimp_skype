@@ -32,8 +32,7 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
 
     #send:
     #embed()
-    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
-    print("Done sent!!")
+    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
@@ -61,7 +60,11 @@ if __name__ == "__main__":
     middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
     for i in middle_bond.iterrows():
         i = i[1]
-        mail_receivers = i.PIC.strip("[]'").split("', '")
+        try:
+            mail_receivers = i.PIC.strip("[]'").split("', '")
+        except Exception as e:
+            print("Skip this row when getting PIC for %s."%i.MV)
+            continue
         try:
             mail_receivers.remove('')
         except:
