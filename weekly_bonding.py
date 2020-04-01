@@ -106,19 +106,25 @@ def get_vessels_repository_and_patterns():
 
 def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
-    msg = extract_msg.Message(f)
+    try:
+        msg = extract_msg.Message(f)
+    except Exception as e:
+        if DEBUG:print(e)
+        return False, False
     #msg_sender = msg.sender
     #msg_date = msg.date
     msg_subj = msg.subject
-    msg_content = msg_subj + msg.body
+    msg_content = msg_subj + msg.body  #Content include all
+    for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
+        msg_content = msg_content.replace(i, '')
+    msg_content = msg_content.replace(' @', '@')
+    msg_content = msg_content.replace('@ ', '@')
     if DEBUG:
         print("|"*24)
         print("In file %s: "%f)
         print("msg_subj:", msg_subj)
         #print(msg_content[:50])
         print("|"*30)
-    for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
-        msg_content = msg_content.replace(i, '')
     return msg, msg_content
 
 def retrieve_sender_email(msg):
@@ -135,7 +141,7 @@ def retrieve_sender_email(msg):
         sender_email = ""
     return sender_email
 
-def judge_if_is_not_REply(msg):
+def judge_if_is_not_REply_or_others(msg):
     if len(re.findall('r[e]?[ply]?:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         return False
     else:
@@ -313,15 +319,13 @@ if __name__ == "__main__":
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
     #for this_msg_file in msg_files:
-        try:
-            msg, msg_content = parse_msg(this_msg_file)
-        except Exception as e:
+        msg, msg_content = parse_msg(this_msg_file)
+        if msg == False:
             num_of_failures += 1
             failure_list.append(this_msg_file)
-            if DEBUG:print(this_msg_file, e)
             continue
         sender_email = retrieve_sender_email(msg)
-        if judge_if_is_not_REply(msg) is True and len(sender_email)>0:
+        if judge_if_is_not_REply_or_others(msg, ) is True and len(sender_email)>0:
             if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
                 vessels_name = retrieve_vessel(msg_content, vessels_pattern)
                 skypes_id = retrieve_skype(msg_content)
