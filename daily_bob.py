@@ -248,7 +248,11 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
             sk.conn.verifyToken(sk.conn.tokens)
             for _struct_ in struct_list:
                 _struct_[-1] = sk      #Renew sk for pools after login
-            n += 1
+            if len(struct_list)<30:
+                n += 1
+            else:
+               print("HeHe too much failures, n+=0.5")
+               n += 0.5
     if len(struct_list)>0:
         print("Failure (given up) struct:", failed_name)
     pool.close()
