@@ -12,6 +12,7 @@ from collections import Counter
 import numpy as np
 import argparse
 import shutil
+import textract
 
 SKYPE_TESTER = \
 '''
@@ -118,17 +119,24 @@ def parse_msg(msg_file_path):
     try:
         msg = extract_msg.Message(f)
     except Exception as e:
-        if DEBUG:print(e)
-        return False, False
-    #msg_sender = msg.sender
-    #msg_date = msg.date
+        print("Failed on extract_msg!",e)
+        return False, False, False
+    if msg.sender is None:
+        print("Email with no sender")
+        msg_sender = ' '
+    else:
+        msg_sender = msg.sender
     if msg.subject is None:
-        if DEBUG:print("Email with no subject, just use its body")
-        msg.subject = ' '
+        print("Email with no subject, just use its body")
+        msg_subject = ' '
+    else:
+        msg_subject = msg.subject
     if msg.body is None:
-        if DEBUG:print("Email with no body! WTF?")
-        msg.body = ' '
-    msg_content = msg.subject + msg.body  #Content include all
+        print("Email with no body! WTF?")
+        msg_body = ' '
+    else:
+        msg_body = msg.body
+    msg_content = msg_subject + msg_body  #Content include all
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
@@ -139,10 +147,12 @@ def parse_msg(msg_file_path):
         print("msg_subj:", msg_content)
         #print(msg_content[:50])
         print("|"*30)
-    return msg, msg_content
+    return msg_sender, msg_subject, msg_content
 
-def retrieve_sender_email(msg):
-    sender_email_raw = msg.sender
+def retrieve_sender_email(msg_sender):
+    sender_email_raw = msg_sender
+    if sender_email_raw is None:
+        sender_email_raw = ' '
     pattern = re.compile('<(.*)>')
     sender_email = pattern.findall(sender_email_raw)
     if DEBUG:
@@ -155,7 +165,7 @@ def retrieve_sender_email(msg):
         sender_email = ""
     return sender_email
 
-def judge_if_is_not_REply_or_others(msg, msg_subject_and_content):
+def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
     other_trashes_in_subject_and_content = '''
             failure
             rejected
@@ -173,7 +183,7 @@ def judge_if_is_not_REply_or_others(msg, msg_subject_and_content):
             '''.replace(' ','').split('\n')
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
-    if len(re.findall('r[e]?[ply]?:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+    if len(re.findall('r[e]?[ply]?:', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         return False
     elif len(other_trashes_pattern.findall(msg_subject_and_content))>0:   #If others
         if DEBUG:print("Other trashes found:%s"%other_trashes_pattern.findall(msg_subject_and_content))
@@ -332,9 +342,13 @@ if __name__ == "__main__":
         #checkpoint = pd.DataFrame()
     else:
         print("Running restart.... Loading checkpoint...")
-        restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
-        restart_SENDER_PIC_SKYPE = pd.read_csv("output/core_SENDER_PIC_SKYPE.csv")
-        TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        try:
+            restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
+            restart_SENDER_PIC_SKYPE = pd.read_csv("output/core_SENDER_PIC_SKYPE.csv")
+            TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        except Exception as e:
+            print("e\n Error reading restart file, you may want to run from scratch? with -S")
+            sys.exit()
         for i in restart_MV_SENDER.iterrows():
             MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
         for i in restart_SENDER_PIC_SKYPE.iterrows():
@@ -363,14 +377,16 @@ if __name__ == "__main__":
     num_of_failures = 0
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
-    #for this_msg_file in msg_files:
-        msg, msg_content = parse_msg(this_msg_file)
-        if msg == False:
+        print(this_msg_file)
+        msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
+        except Exception as e:
+            print("SHIT textract", e)
+        if msg_subject == False:
             num_of_failures += 1
             failure_list.append(this_msg_file)
             continue
-        sender_email = retrieve_sender_email(msg)
-        if judge_if_is_not_REply_or_others(msg, msg_content) is True and len(sender_email)>0:
+        sender_email = retrieve_sender_email(msg_sender)
+        if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
             if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
                 vessels_name = retrieve_vessel(msg_content, vessels_patterns)
                 skypes_id = retrieve_skype(msg_content)
