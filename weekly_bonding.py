@@ -117,25 +117,13 @@ def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
     try:
         msg = extract_msg.Message(f)
+        msg_sender = msg.sender
+        msg_subject = msg.subject
+        msg_body = msg.body
+        msg_content = msg_subject + msg_body  #Content include all
     except Exception as e:
         print("Failed on extract_msg!",e)
         return False, False, False
-    if msg.sender is None:
-        print("Email with no sender")
-        msg_sender = ' '
-    else:
-        msg_sender = msg.sender
-    if msg.subject is None:
-        print("Email with no subject, just use its body")
-        msg_subject = ' '
-    else:
-        msg_subject = msg.subject
-    if msg.body is None:
-        print("Email with no body! WTF?")
-        msg_body = ' '
-    else:
-        msg_body = msg.body
-    msg_content = msg_subject + msg_body  #Content include all
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
