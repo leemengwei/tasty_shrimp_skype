@@ -12,7 +12,6 @@ from collections import Counter
 import numpy as np
 import argparse
 import shutil
-import textract
 
 SKYPE_TESTER = \
 '''
