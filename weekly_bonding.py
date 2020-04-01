@@ -122,8 +122,13 @@ def parse_msg(msg_file_path):
         return False, False
     #msg_sender = msg.sender
     #msg_date = msg.date
-    msg_subj = msg.subject
-    msg_content = msg_subj + msg.body  #Content include all
+    if msg.subject is None:
+        if DEBUG:print("Email with no subject, just use its body")
+        msg.subject = ' '
+    if msg.body is None:
+        if DEBUG:print("Email with no body! WTF?")
+        msg.body = ' '
+    msg_content = msg.subject + msg.body  #Content include all
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
@@ -131,7 +136,7 @@ def parse_msg(msg_file_path):
     if DEBUG:
         print("|"*24)
         print("In file %s: "%f)
-        print("msg_subj:", msg_subj)
+        print("msg_subj:", msg_content)
         #print(msg_content[:50])
         print("|"*30)
     return msg, msg_content
@@ -417,7 +422,7 @@ if __name__ == "__main__":
         embed()
 
     #To Consumed:
-    print("Core generated, now moving to consumed...")
+    print("Moving to consumed...")
     for msg_file in msg_files:
         tmp = msg_file.split('/')
         tmp.insert(-1, 'consumed')
