@@ -123,7 +123,11 @@ def parse_msg(msg_file_path):
     #msg_sender = msg.sender
     #msg_date = msg.date
     msg_subj = msg.subject
-    msg_content = msg_subj + msg.body  #Content include all
+    if msg_subj is not None:
+        msg_content = msg_subj + msg.body  #Content include all
+    else:
+        if DEBUG:print("Email with no subject, just use its body")
+        msg_content = msg.body
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
