@@ -105,7 +105,7 @@ def get_vessels_repository_and_patterns():
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
     #all_patterns = '|'.join([pattern1, pattern3])
-    all_safe_patterns = '|'.join([pattern1])
+    all_safe_patterns = '|'.join([pattern1,'(TOKEN-FUSS-TOKEN-FUSS)'])
     all_unsafe_patterns = '|'.join([pattern3, pattern2])
     vessels_patterns = {}
     vessels_patterns['safe'] = re.compile(r'%s'%all_safe_patterns, re.I)
@@ -163,15 +163,15 @@ def judge_if_is_not_REply_or_others(msg, msg_subject_and_content):
             Undeliverable
             Non recapitabile
             Systems bounce
-            returned
             support@tnticker.com
             This email address is no longer in use
-            '''.split('\n')
+            '''.replace(' ','').split('\n')
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
     if len(re.findall('r[e]?[ply]?:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         return False
     elif len(other_trashes_pattern.findall(msg_subject_and_content))>0:   #If others
+        if DEBUG:print("Other trashes found:%s"%other_trashes_pattern.findall(msg_subject_and_content))
         return False
     else:
         return True
@@ -192,15 +192,22 @@ def retrieve_vessel(msg_content, vessels_patterns):
     vessels_name = []
     vessels_pattern_safe = vessels_patterns['safe']
     vessels_pattern_unsafe = vessels_patterns['unsafe']
-    vessels_name_raw1 = vessels_pattern_safe.findall(msg_content)
-    vessels_name_raw2 = vessels_pattern_unsafe.findall(msg_content)
-    embed()
+    vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
+    vessels_name_raw_unsafe = vessels_pattern_unsafe.findall(msg_content)  #return [()]
+    #If safe name occured then ignore unsafe name:
+    redudant_name = []
+    for temp in vessels_name_raw_unsafe:
+        for short_name in temp:
+            if short_name in str(vessels_name_raw_safe) and short_name not in redudant_name:
+                redudant_name.append(short_name)
+    #Taken out names:
+    vessels_name_raw = vessels_name_raw_safe + vessels_name_raw_unsafe
     if len(vessels_name_raw) == 0:
         pass
     else:
         for i in vessels_name_raw:
             for j in i:
-                if j != '':
+                if j != '' and j not in redudant_name:
                     vessels_name.append(j.strip(' '))
     order = vessels_name.index
     vessels_name = list(set(vessels_name))
@@ -210,7 +217,7 @@ def retrieve_vessel(msg_content, vessels_patterns):
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
-    #TODO: To fix MV CORAL and MV CORAL GEM
+    #TODO: To fix MV CORAL and MV CORAL GEM     FIXED 04 01
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -399,12 +406,15 @@ if __name__ == "__main__":
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': TRASH_SENDER})
     
     ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
-    data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
-    data_SENDER_PIC_SKYPE.to_csv('output/core_SENDER_PIC_SKYPE.csv', index=False)
-    TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
-    ok.to_csv('output/OK.csv', index=False)
-    data_MV_SENDER_PIC_SKYPE.to_csv('output/core_MV_SENDER_PIC_SKYPE.csv', index=False)
-
+    try:
+        data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
+        data_SENDER_PIC_SKYPE.to_csv('output/core_SENDER_PIC_SKYPE.csv', index=False)
+        TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
+        ok.to_csv('output/OK.csv', index=False)
+        data_MV_SENDER_PIC_SKYPE.to_csv('output/core_MV_SENDER_PIC_SKYPE.csv', index=False)
+    except:
+        print("Saving to csv error, your computer may be A piece of Shit! Will now interact mannually!")
+        embed()
 
     #To Consumed:
     print("Core generated, now moving to consumed...")
