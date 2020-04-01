@@ -71,7 +71,7 @@ if __name__ == "__main__":
             pass
         if len(mail_receivers) == 0:
             continue
-        subject_content = 'For M/V: %s'%i.MV
+        subject_content = 'MV %s/Suitable cargo - Bancsota desk'%i.MV
         body_content = get_body_content(CONTENT_FILE_NAME)
         print("MV %s, Sending to %s"%(i.MV, mail_receivers))
         send_action(mail_sender, mail_receivers, subject_content, body_content)
