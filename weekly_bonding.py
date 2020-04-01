@@ -379,8 +379,6 @@ if __name__ == "__main__":
     for this_msg_file in tqdm.tqdm(msg_files):
         print(this_msg_file)
         msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
-        except Exception as e:
-            print("SHIT textract", e)
         if msg_subject == False:
             num_of_failures += 1
             failure_list.append(this_msg_file)
