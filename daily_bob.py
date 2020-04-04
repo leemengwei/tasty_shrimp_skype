@@ -131,14 +131,17 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 def ideal_pool_chat_by_blob(struct):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_blob_and_chat(skype_id, message):
-        blob = sk.contacts[skype_id]
         print("Pool Sending to %s (%s)"%(blob.name, skype_id))
+        blob = sk.contacts[skype_id]
         sys.stdout.flush()
         blob.chat.sendMsg(message)
+        #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
+        #    print(Failure_on_intension)
         return
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
         auto_timeout_blob_and_chat(skype_id, message)
+        print("Okay", skype_id)
         return True
     except Exception as e:
         print("When sending %s,"%skype_id, e)
@@ -230,20 +233,28 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=72)
+    pool = Pool(processes=8)
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
     if PRESSURE_TEST:struct_list *= 50
     n = 0
-    while n<5 and len(struct_list)>0:
+    while n<3 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_name = np.array(struct_list)[:,0].tolist()
-            print("Remaining (retrying on):", failed_name)
+            print("Remaining (retrying on):", failed_name, n)
+            time.sleep(WAIT_TIME)
             sk = relentless_login_web_skype(username, password)
-            n += 1
+            sk.conn.verifyToken(sk.conn.tokens)
+            for _struct_ in struct_list:
+                _struct_[-1] = sk      #Renew sk for pools after login
+            if len(struct_list)<30:
+                n += 1
+            else:
+               print("HeHe too much failures, n+=0.5")
+               n += 0.5
     if len(struct_list)>0:
         print("Failure (given up) struct:", failed_name)
     pool.close()
@@ -319,7 +330,7 @@ def misc():
     return
 
 if __name__ == "__main__":
-    WAIT_TIME = 35
+    WAIT_TIME = 55
     PRESSURE_TEST = False
     #PRESSURE_TEST = True
     CHECK_CONTACTS_VALID = False
@@ -327,7 +338,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    DRY_RUN = True
+    #DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True

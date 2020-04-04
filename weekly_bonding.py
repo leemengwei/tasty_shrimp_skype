@@ -35,6 +35,12 @@ Msn/Skype:Fengncl@hotmail.com
 Skype/MSn:Fengncl@hotmail.com
 '''
 
+VESSELS_TESTER = \
+'''
+For MV Huayang
+MV CORAL GEM
+'''
+
 README = \
 '''
 **************************
@@ -77,7 +83,7 @@ def get_vessels_repository_and_patterns():
     for vessel in vessels_repository:
         if ' ' in vessel or '.' in vessel or '-' in vessel:
             safe_name.append(vessel)
-            for i in re.findall(r'[ ]*[0-9\.-][ ]*', vessel, re.I):
+            for i in re.findall(r'[ ]*[0-9\.-][ ]*', vessel, re.I):  #name like huayang -1 will be additionally added as huyang-1 as well
                 add_vessel = vessel.replace(i, i.strip(' '))
                 safe_name.append(add_vessel)
         else:
@@ -85,7 +91,7 @@ def get_vessels_repository_and_patterns():
     safe_name.sort(key = lambda i:len(i),reverse=True)
     unsafe_name.sort(key = lambda i:len(i),reverse=True)
     #Use raw name for safe:
-    head = r'('
+    head = r'[\n\r\t]*('
     tail = ')[^A-Za-z0-9]'
     pattern1 = head+'|'.join(safe_name)+tail
     #Mv m.v m/v added for unsafe:
@@ -99,30 +105,41 @@ def get_vessels_repository_and_patterns():
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
     #all_patterns = '|'.join([pattern1, pattern3])
-    all_patterns = '|'.join([pattern1, pattern3, pattern2])
-    vessels_pattern = re.compile(r'%s'%all_patterns, re.I)
-    return vessels_repository, vessels_pattern
+    all_safe_patterns = '|'.join([pattern1,'(TOKEN-FUSS-TOKEN-FUSS)'])
+    all_unsafe_patterns = '|'.join([pattern3, pattern2])
+    vessels_patterns = {}
+    vessels_patterns['safe'] = re.compile(r'%s'%all_safe_patterns, re.I)
+    vessels_patterns['unsafe'] = re.compile(r'%s'%all_unsafe_patterns, re.I)
+    return vessels_repository, vessels_patterns
 
 
 def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
-    msg = extract_msg.Message(f)
-    #msg_sender = msg.sender
-    #msg_date = msg.date
-    msg_subj = msg.subject
-    msg_content = msg_subj + msg.body
+    try:
+        msg = extract_msg.Message(f)
+        msg_sender = msg.sender
+        msg_subject = msg.subject
+        msg_body = msg.body
+        msg_content = msg_subject + msg_body  #Content include all
+    except Exception as e:
+        print("Failed on extract_msg!",e)
+        return False, False, False
+    for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
+        msg_content = msg_content.replace(i, '')
+    msg_content = msg_content.replace(' @', '@')
+    msg_content = msg_content.replace('@ ', '@')
     if DEBUG:
         print("|"*24)
         print("In file %s: "%f)
-        print("msg_subj:", msg_subj)
+        print("msg_subj:", msg_content)
         #print(msg_content[:50])
         print("|"*30)
-    for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
-        msg_content = msg_content.replace(i, '')
-    return msg, msg_content
+    return msg_sender, msg_subject, msg_content
 
-def retrieve_sender_email(msg):
-    sender_email_raw = msg.sender
+def retrieve_sender_email(msg_sender):
+    sender_email_raw = msg_sender
+    if sender_email_raw is None:
+        sender_email_raw = ' '
     pattern = re.compile('<(.*)>')
     sender_email = pattern.findall(sender_email_raw)
     if DEBUG:
@@ -135,11 +152,32 @@ def retrieve_sender_email(msg):
         sender_email = ""
     return sender_email
 
-def judge_if_is_not_REply(msg):
-    if len(re.findall('r[e]?[ply]?:', msg.subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
+    other_trashes_in_subject_and_content = '''
+            failure
+            rejected
+            退信
+            returned
+            Recapito ritardato
+            Mailer-Daemon@mail4.bancosta.it
+            Delivery failure
+            Delivery delayed
+            Undeliverable
+            Non recapitabile
+            Systems bounce
+            support@tnticker.com
+            This email address is no longer in use
+            '''.replace(' ','').split('\n')
+    other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
+    other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
+    if len(re.findall('r[e]?[ply]?:', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+        return False
+    elif len(other_trashes_pattern.findall(msg_subject_and_content))>0:   #If others
+        if DEBUG:print("Other trashes found:%s"%other_trashes_pattern.findall(msg_subject_and_content))
         return False
     else:
         return True
+
 def judge_if_direct_counterpart(sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email, re.I)) for i in counterparts_repository])
@@ -152,15 +190,26 @@ def judge_if_direct_counterpart(sender_email, counterparts_repository):
         direct_counterpart = False
     return direct_counterpart
 
-def retrieve_vessel(msg_content, vessels_pattern):
+def retrieve_vessel(msg_content, vessels_patterns):
     vessels_name = []
-    vessels_name_raw = vessels_pattern.findall(msg_content)
+    vessels_pattern_safe = vessels_patterns['safe']
+    vessels_pattern_unsafe = vessels_patterns['unsafe']
+    vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
+    vessels_name_raw_unsafe = vessels_pattern_unsafe.findall(msg_content)  #return [()]
+    #If safe name occured then ignore unsafe name:
+    redudant_name = []
+    for temp in vessels_name_raw_unsafe:
+        for short_name in temp:
+            if short_name in str(vessels_name_raw_safe) and short_name not in redudant_name:
+                redudant_name.append(short_name)
+    #Taken out names:
+    vessels_name_raw = vessels_name_raw_safe + vessels_name_raw_unsafe
     if len(vessels_name_raw) == 0:
         pass
     else:
         for i in vessels_name_raw:
             for j in i:
-                if j != '':
+                if j != '' and j not in redudant_name:
                     vessels_name.append(j.strip(' '))
     order = vessels_name.index
     vessels_name = list(set(vessels_name))
@@ -170,8 +219,7 @@ def retrieve_vessel(msg_content, vessels_pattern):
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
-    #TODO: To fix MV CORAL and MV CORAL GEM
-    #embed()
+    #TODO: To fix MV CORAL and MV CORAL GEM     FIXED 04 01
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -281,9 +329,13 @@ if __name__ == "__main__":
         #checkpoint = pd.DataFrame()
     else:
         print("Running restart.... Loading checkpoint...")
-        restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
-        restart_SENDER_PIC_SKYPE = pd.read_csv("output/core_SENDER_PIC_SKYPE.csv")
-        TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        try:
+            restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
+            restart_SENDER_PIC_SKYPE = pd.read_csv("output/core_SENDER_PIC_SKYPE.csv")
+            TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        except Exception as e:
+            print("e\n Error reading restart file, you may want to run from scratch? with -S")
+            sys.exit()
         for i in restart_MV_SENDER.iterrows():
             MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
         for i in restart_SENDER_PIC_SKYPE.iterrows():
@@ -305,25 +357,23 @@ if __name__ == "__main__":
     msg_files = msg_files[:]
     #Repos:
     counterparts_repository = get_counterparts_repository()
-    vessels_repository, vessels_pattern = get_vessels_repository_and_patterns()
+    vessels_repository, vessels_patterns = get_vessels_repository_and_patterns()
     #embed()
 
     #Loop over msgs:
     num_of_failures = 0
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
-    #for this_msg_file in msg_files:
-        try:
-            msg, msg_content = parse_msg(this_msg_file)
-        except Exception as e:
+        print(this_msg_file)
+        msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
+        if msg_subject == False:
             num_of_failures += 1
             failure_list.append(this_msg_file)
-            if DEBUG:print(this_msg_file, e)
             continue
-        sender_email = retrieve_sender_email(msg)
-        if judge_if_is_not_REply(msg) is True and len(sender_email)>0:
+        sender_email = retrieve_sender_email(msg_sender)
+        if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
             if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
-                vessels_name = retrieve_vessel(msg_content, vessels_pattern)
+                vessels_name = retrieve_vessel(msg_content, vessels_patterns)
                 skypes_id = retrieve_skype(msg_content)
                 pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
                 blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
@@ -362,15 +412,18 @@ if __name__ == "__main__":
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': TRASH_SENDER})
     
     ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
-    data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)
-    data_SENDER_PIC_SKYPE.to_csv('output/core_SENDER_PIC_SKYPE.csv', index=False)
-    TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
-    ok.to_csv('output/OK.csv', index=False)
-    data_MV_SENDER_PIC_SKYPE.to_csv('output/core_MV_SENDER_PIC_SKYPE.csv', index=False)
-
+    try:
+        data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
+        data_SENDER_PIC_SKYPE.to_csv('output/core_SENDER_PIC_SKYPE.csv', index=False)
+        TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
+        ok.to_csv('output/OK.csv', index=False)
+        data_MV_SENDER_PIC_SKYPE.to_csv('output/core_MV_SENDER_PIC_SKYPE.csv', index=False)
+    except:
+        print("Saving to csv error, your computer may be A piece of Shit! Will now interact mannually!")
+        embed()
 
     #To Consumed:
-    print("Core generated, now moving to consumed...")
+    print("Moving to consumed...")
     for msg_file in msg_files:
         tmp = msg_file.split('/')
         tmp.insert(-1, 'consumed')
