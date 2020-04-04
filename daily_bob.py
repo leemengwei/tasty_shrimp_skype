@@ -135,6 +135,8 @@ def ideal_pool_chat_by_blob(struct):
         print("Pool Sending to %s (%s)"%(blob.name, skype_id))
         sys.stdout.flush()
         blob.chat.sendMsg(message)
+        if DRY_RUN and skype_id=='live:892bfe64f9296876': #mengxuan_2
+            print(Failure_on_intension)
         return
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
@@ -231,13 +233,13 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=72)
+    pool = Pool(processes=10)
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
     if PRESSURE_TEST:struct_list *= 50
     n = 0
-    while n<5 and len(struct_list)>0:
+    while n<3 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
@@ -336,7 +338,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    #DRY_RUN = True
+    DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
