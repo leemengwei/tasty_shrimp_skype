@@ -131,12 +131,12 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 def ideal_pool_chat_by_blob(struct):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_blob_and_chat(skype_id, message):
-        blob = sk.contacts[skype_id]
         print("Pool Sending to %s (%s)"%(blob.name, skype_id))
+        blob = sk.contacts[skype_id]
         sys.stdout.flush()
         blob.chat.sendMsg(message)
-        if DRY_RUN and skype_id=='live:892bfe64f9296876': #mengxuan_2
-            print(Failure_on_intension)
+        #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
+        #    print(Failure_on_intension)
         return
     skype_id, message, sk = struct[0], struct[1], struct[2]
     try:
@@ -233,7 +233,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=10)
+    pool = Pool(processes=8)
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     PARSE_FROM_ZERO = False
     PARSE_FROM_ZERO = True
     DRY_RUN = False
-    DRY_RUN = True
+    #DRY_RUN = True
     
     if PRESSURE_TEST:
         DRY_RUN = True
