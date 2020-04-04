@@ -170,16 +170,16 @@ def get_all_target_people(sk, username, additional_contacts_path, remove_contact
     #Get sync contacts
     print("Getting contacts...")
     sk.contacts.sync()
-    all_contacts = sk.contacts.contactIds
+    skype_contacts = sk.contacts.contactIds
     with open("data/%s/raw_skype_contacts_%s.txt"%(username, str(datetime.datetime.today()).split(' ')[0]), 'w') as f:
-        for i in all_contacts:
+        for i in skype_contacts:
             f.write(i+ '\n')
     additional_contacts = open(additional_contacts_path, 'r').readlines()
     additional_contacts = ''.join(additional_contacts).split('\n')[:]
     removed_contacts = open(remove_contacts_path, 'r').readlines()
     print(removed_contacts)
     removed_contacts = ''.join(removed_contacts).split('\n')[:]
-    all_target_people = list(set(all_contacts)&set(additional_contacts) - set(removed_contacts))
+    all_target_people = list(set(skype_contacts)&set(additional_contacts) - set(removed_contacts))
     if CHECK_CONTACTS_VALID:
         all_target_people = check_invalid_account(sk, all_target_people)
     print("%s people returned,%s people removed"%(len(all_target_people), len(removed_contacts)))
