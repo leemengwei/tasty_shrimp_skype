@@ -300,6 +300,43 @@ def get_counterparts_repository():
         pass
     return counterparts_repository
 
+def solve_one_msg(this_msg_file, num_of_failures, failure_list):
+    if DEBUG:print(this_msg_file)
+    msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
+    if msg_subject == False:
+        num_of_failures += 1
+        failure_list.append(this_msg_file)
+        return MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER
+    sender_email = retrieve_sender_email(msg_sender)
+    if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
+        if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
+            vessels_name = retrieve_vessel(msg_content, vessels_patterns)
+            skypes_id = retrieve_skype(msg_content)
+            pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
+            blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
+            #PARSE ShARED CORE BLOB,
+            #embed()
+            for mv in blob['MV']:
+                MV_SENDER_BLOB[mv] = blob['SENDER']  #list to str
+            sender = blob['SENDER']
+            if sender in SENDER_PIC_BLOB.keys():
+                SENDER_PIC_BLOB[sender] += blob['PIC']
+            else:
+                SENDER_PIC_BLOB[sender] = blob['PIC']
+            if sender in SENDER_SKYPE_BLOB.keys():
+                SENDER_SKYPE_BLOB[sender] += blob['SKYPE']
+                SENDER_SKYPE_BLOB[sender] = list(set(SENDER_SKYPE_BLOB[sender]))
+            else:
+                SENDER_SKYPE_BLOB[sender] = blob['SKYPE']
+        else:
+            TRASH_SENDER.append(sender_email)
+            if DEBUG:
+                print("Not direct couterpart: %s"%sender_email)
+    else:
+        if DEBUG:
+            print("This is Reply! pass")
+        pass
+    return MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -364,41 +401,7 @@ if __name__ == "__main__":
     num_of_failures = 0
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
-        print(this_msg_file)
-        msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
-        if msg_subject == False:
-            num_of_failures += 1
-            failure_list.append(this_msg_file)
-            continue
-        sender_email = retrieve_sender_email(msg_sender)
-        if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
-            if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
-                vessels_name = retrieve_vessel(msg_content, vessels_patterns)
-                skypes_id = retrieve_skype(msg_content)
-                pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
-                blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
-                #PARSE ShARED CORE BLOB,
-                #embed()
-                for mv in blob['MV']:
-                    MV_SENDER_BLOB[mv] = blob['SENDER']  #list to str
-                sender = blob['SENDER']
-                if sender in SENDER_PIC_BLOB.keys():
-                    SENDER_PIC_BLOB[sender] += blob['PIC']
-                else:
-                    SENDER_PIC_BLOB[sender] = blob['PIC']
-                if sender in SENDER_SKYPE_BLOB.keys():
-                    SENDER_SKYPE_BLOB[sender] += blob['SKYPE']
-                    SENDER_SKYPE_BLOB[sender] = list(set(SENDER_SKYPE_BLOB[sender]))
-                else:
-                    SENDER_SKYPE_BLOB[sender] = blob['SKYPE']
-            else:
-                TRASH_SENDER.append(sender_email)
-                if DEBUG:
-                    print("Not direct couterpart: %s"%sender_email)
-        else:
-            if DEBUG:
-                print("This is Reply! pass")
-            pass
+        MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(this_msg_file, num_of_failures, failure_list)
     #Blacklist and -skype:
     for sender in SENDER_PIC_BLOB.keys():
         SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender])-set(SENDER_SKYPE_BLOB[sender])-set(BLACKLIST_PIC))
