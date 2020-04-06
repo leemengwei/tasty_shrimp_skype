@@ -131,7 +131,7 @@ def parse_msg(msg_file_path):
     if DEBUG:
         print("|"*24)
         print("In file %s: "%f)
-        print("msg_subj:", msg_content)
+        #print("msg_subj:", msg_content)
         #print(msg_content[:50])
         print("|"*30)
     return msg_sender, msg_subject, msg_content
@@ -274,20 +274,28 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
     pic_mailboxes  = pattern.findall(msg_content)
     pic_mailboxes += [sender_email]
     if DEBUG:
-        print("Got PICmailboxes:")
+        print("Got mailboxes:")
         print(pic_mailboxes)
     for idx,this_pic_mailbox in enumerate(pic_mailboxes):
         pic_mailboxes[idx] = this_pic_mailbox.lower()
     return pic_mailboxes
 
-def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes):
-    blob = {'MV':[], 'SENDER':sender_email, 'SKYPE':[], 'PIC':[]}
+def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
+    pic_skype = None
+    if len(vessels_name)==1 and len(skypes_id)==1:
+        if DEBUG:print('Got A pic skype for %s %s'%(vessels_name, skypes_id))
+        pic_skype = skypes_id[0]
+    return pic_skype
+
+def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
+    blob = {'MV':[], 'SENDER':sender_email, 'SKYPES':[], 'MAILBOXES':[]}
     if (len(vessels_name)+len(skypes_id))==0:
         pass
     else:
         blob['MV'] = vessels_name
-        blob['SKYPE'] = skypes_id
-        blob['PIC'] = pic_mailboxes
+        blob['SKYPES'] = skypes_id
+        blob['MAILBOXES'] = pic_mailboxes
+        blob['PIC_SKYPE'] = pic_skype
         #print(yaml.dump(blob))
     return blob
 
@@ -306,28 +314,34 @@ def solve_one_msg(this_msg_file, num_of_failures, failure_list):
     if msg_subject == False:
         num_of_failures += 1
         failure_list.append(this_msg_file)
-        return MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER
+        return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER
     sender_email = retrieve_sender_email(msg_sender)
     if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
             vessels_name = retrieve_vessel(msg_content, vessels_patterns)
             skypes_id = retrieve_skype(msg_content)
             pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
-            blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes)
+            pic_skype = retrieve_pic_skype(msg_content, vessels_name, skypes_id)
+            blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
             #PARSE ShARED CORE BLOB,
-            #embed()
+            #SUBSTUTIVE:
             for mv in blob['MV']:
-                MV_SENDER_BLOB[mv] = blob['SENDER']  #list to str
+                MV_SENDER_BLOB[mv] = blob['SENDER'] 
+            for mv in blob['MV']:
+                MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE']
+            #ACCUMULATIVE:
             sender = blob['SENDER']
-            if sender in SENDER_PIC_BLOB.keys():
-                SENDER_PIC_BLOB[sender] += blob['PIC']
+            #embed()
+            if sender in SENDER_MAILBOXES_BLOB.keys():
+                SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
+                SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
             else:
-                SENDER_PIC_BLOB[sender] = blob['PIC']
-            if sender in SENDER_SKYPE_BLOB.keys():
-                SENDER_SKYPE_BLOB[sender] += blob['SKYPE']
-                SENDER_SKYPE_BLOB[sender] = list(set(SENDER_SKYPE_BLOB[sender]))
+                SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
+            if sender in SENDER_SKYPES_BLOB.keys():
+                SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
+                SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
             else:
-                SENDER_SKYPE_BLOB[sender] = blob['SKYPE']
+                SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
         else:
             TRASH_SENDER.append(sender_email)
             if DEBUG:
@@ -336,7 +350,7 @@ def solve_one_msg(this_msg_file, num_of_failures, failure_list):
         if DEBUG:
             print("This is Reply! pass")
         pass
-    return MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER
+    return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -350,12 +364,13 @@ if __name__ == "__main__":
     FROM_SCRATCH = args.FROM_SCRATCH
     DEBUG = args.DEBUG
     DATA_PATH_PREFIX = './data/data_bonding_net/'
-    BLACKLIST_PIC = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
+    BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     TEST = ''
     #From scratch? Checkpoint?
     MV_SENDER_BLOB = {}
-    SENDER_PIC_BLOB = {}
-    SENDER_SKYPE_BLOB = {}
+    SENDER_MAILBOXES_BLOB = {}
+    SENDER_SKYPES_BLOB = {}
+    MV_SKYPE_BLOB = {}
     TRASH_SENDER = []
     if FROM_SCRATCH:
         print("Run from scratch, moving msgs to work place...")
@@ -368,27 +383,39 @@ if __name__ == "__main__":
         print("Running restart.... Loading checkpoint...")
         try:
             restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
-            restart_SENDER_PIC_SKYPE = pd.read_csv("output/core_SENDER_PIC_SKYPE.csv")
+            restart_SENDER_MAILBOXES = pd.read_csv("output/core_SENDER_MAILBOXES.csv")
+            restart_SENDER_SKYPES = pd.read_csv("output/core_SENDER_SKYPES.csv")
+            restart_MV_SKYPE = pd.read_csv("output/core_MV_SKYPE.csv")
             TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
         except Exception as e:
             print("e\n Error reading restart file, you may want to run from scratch? with -S")
             sys.exit()
         for i in restart_MV_SENDER.iterrows():
             MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
-        for i in restart_SENDER_PIC_SKYPE.iterrows():
-            tmp = i[1].PIC.strip("[]'").split("', '")
+        for i in restart_SENDER_MAILBOXES.iterrows():
+            tmp = i[1].MAILBOXES.strip("[]'").split("', '")
             try:
                 tmp.remove('')
             except:
                 pass
-            SENDER_PIC_BLOB[i[1].SENDER] = tmp
-        for i in restart_SENDER_PIC_SKYPE.iterrows():
-            tmp = i[1].SKYPE.strip("[]'").split("', '")
+            SENDER_MAILBOXES_BLOB[i[1].SENDER] = tmp
+        for i in restart_SENDER_SKYPES.iterrows():
+            tmp = i[1].SKYPES.strip("[]'").split("', '")
             try:
                 tmp.remove('')
             except:
                 pass
-            SENDER_SKYPE_BLOB[i[1].SENDER] = tmp
+            SENDER_SKYPES_BLOB[i[1].SENDER] = tmp
+        for i in restart_MV_SKYPE.iterrows():
+            if i[1].PIC_SKYPE is not np.nan:
+                tmp = i[1].PIC_SKYPE.strip("[]'").split("', '")
+            else:
+                tmp = ''
+            try:
+                tmp.remove('')
+            except:
+                pass
+            MV_SKYPE_BLOB[i[1].MV] = tmp
     #Will work on files:
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/%s/*.msg"%TEST)
     msg_files = msg_files[:]
@@ -401,26 +428,30 @@ if __name__ == "__main__":
     num_of_failures = 0
     failure_list = []
     for this_msg_file in tqdm.tqdm(msg_files):
-        MV_SENDER_BLOB, SENDER_PIC_BLOB, SENDER_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(this_msg_file, num_of_failures, failure_list)
-    #Blacklist and -skype:
-    for sender in SENDER_PIC_BLOB.keys():
-        SENDER_PIC_BLOB[sender] = list(set(SENDER_PIC_BLOB[sender])-set(SENDER_SKYPE_BLOB[sender])-set(BLACKLIST_PIC))
+        MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER = solve_one_msg(this_msg_file, num_of_failures, failure_list)
+    #for Mailboxes, Blacklist and -skype:
+    for sender in SENDER_MAILBOXES_BLOB.keys():
+        SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES))
     print("Failures %s:"%num_of_failures)
 
     #embed()
-    #Get outputs:
-    data_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
-    data_SENDER_PIC_SKYPE = pd.DataFrame({'SENDER':list(SENDER_PIC_BLOB.keys()), 'PIC':list(SENDER_PIC_BLOB.values()), 'SKYPE':list(SENDER_SKYPE_BLOB.values())})
-    data_MV_SENDER_PIC_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'PIC':list(map(SENDER_PIC_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPE':list(map(SENDER_SKYPE_BLOB.get, MV_SENDER_BLOB.values()))})
+    #Generate outputs:
+    output_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
+    output_SENDER_MAILBOXES = pd.DataFrame({'SENDER':list(SENDER_MAILBOXES_BLOB.keys()), 'MAILBOXES':list(SENDER_MAILBOXES_BLOB.values())}) 
+    output_SENDER_SKYPES = pd.DataFrame({'SENDER':list(SENDER_SKYPES_BLOB.keys()), 'SKYPES':list(SENDER_SKYPES_BLOB.values())})
+    output_MV_SKYPE = pd.DataFrame({'MV':list(MV_SKYPE_BLOB.keys()), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
+    output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': TRASH_SENDER})
     
-    ok = pd.DataFrame({ 'ok': list(SENDER_PIC_BLOB.keys())})
+    ok = pd.DataFrame({ 'ok': list(SENDER_MAILBOXES_BLOB.keys())})
     try:
-        data_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
-        data_SENDER_PIC_SKYPE.to_csv('output/core_SENDER_PIC_SKYPE.csv', index=False)
+        output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
+        output_SENDER_MAILBOXES.to_csv('output/core_SENDER_MAILBOXES.csv', index=False)
+        output_SENDER_SKYPES.to_csv('output/core_SENDER_SKYPES.csv', index=False)
+        output_MV_SKYPE.to_csv('output/core_MV_SKYPE.csv', index=False)
         TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
         ok.to_csv('output/OK.csv', index=False)
-        data_MV_SENDER_PIC_SKYPE.to_csv('output/core_MV_SENDER_PIC_SKYPE.csv', index=False)
+        output_MV_SENDER_MAILBOXES_SKYPE.to_csv('output/core_MV_SENDER_MAILBOXES_SKYPE.csv', index=False)
     except:
         print("Saving to csv error, your computer may be A piece of Shit! Will now interact mannually!")
         embed()
