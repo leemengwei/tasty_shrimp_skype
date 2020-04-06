@@ -131,7 +131,7 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 def ideal_pool_chat_by_blob(struct):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_blob_and_chat(skype_id, message):
-        print("Pool Sending to %s (%s)"%(blob.name, skype_id))
+        print("Pool Sending to %s"%skype_id)
         blob = sk.contacts[skype_id]
         sys.stdout.flush()
         blob.chat.sendMsg(message)
