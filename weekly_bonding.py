@@ -12,6 +12,13 @@ from collections import Counter
 import numpy as np
 import argparse
 import shutil
+try:
+    from multiprocessing.pool import Pool
+    MP = True
+    print("Running parallelism...")
+except Exception as e:
+    print(e, "Running serial...")
+    MP = False
 
 SKYPE_TESTER = \
 '''
@@ -68,8 +75,8 @@ README = \
 5、匹配所有direct的skype与邮件；
 6、生成该blob；
 *************************************
-
 '''
+
 def get_vessels_repository_and_patterns():
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
     vessels_repository_raw = []
@@ -122,7 +129,7 @@ def parse_msg(msg_file_path):
         msg_body = msg.body
         msg_content = msg_subject + msg_body  #Content include all
     except Exception as e:
-        print("Failed on extract_msg!",e)
+        if DEBUG:print("Failed on extract_msg!",e)
         return False, False, False
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
@@ -308,7 +315,8 @@ def get_counterparts_repository():
         pass
     return counterparts_repository
 
-def solve_one_msg(this_msg_file, num_of_failures, failure_list):
+def solve_one_msg(struct):
+    this_msg_file, num_of_failures, failure_list = struct[0], struct[1], struct[2]
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
@@ -354,7 +362,6 @@ def solve_one_msg(this_msg_file, num_of_failures, failure_list):
 
 if __name__ == "__main__":
     print("Start principle net...")
-    print(README)
 
     #Config:
     parser = argparse.ArgumentParser()
@@ -427,8 +434,23 @@ if __name__ == "__main__":
     #Loop over msgs:
     num_of_failures = 0
     failure_list = []
-    for this_msg_file in tqdm.tqdm(msg_files):
-        MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER = solve_one_msg(this_msg_file, num_of_failures, failure_list)
+    if MP:
+        pool = Pool(processes=8)
+        struct_list = []
+        for i in range(len(msg_files)):
+            struct_list.append([msg_files[i], num_of_failures, failure_list])
+        rs = pool.map_async(solve_one_msg, struct_list)
+        while (True):
+          if (rs.ready()): break
+          remaining = rs._number_left
+          print("Waiting for", remaining, "tasks to complete...")
+          time.sleep(0.5)
+        embed()  #TODO
+    else:
+        for this_msg_file in tqdm.tqdm(msg_files):
+            struct_this = [this_msg_file, num_of_failures, failure_list]
+            MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
+
     #for Mailboxes, Blacklist and -skype:
     for sender in SENDER_MAILBOXES_BLOB.keys():
         SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES))
