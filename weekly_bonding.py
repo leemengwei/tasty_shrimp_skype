@@ -338,7 +338,10 @@ def solve_one_msg(struct):
             for mv in blob['MV']:
                 MV_SENDER_BLOB[mv] = blob['SENDER'] 
             for mv in blob['MV']:
-                MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE']
+                if blob['PIC_SKYPE'] is None and mv in MV_SKYPE_BLOB.keys():  
+                    pass   #Leave it along, it already has pic, and it's now None, so skip.
+                else:
+                   MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'] #Update pic only when actually found and is not None
             #ACCUMULATIVE:
             sender = blob['SENDER']
             #embed()
