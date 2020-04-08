@@ -447,7 +447,7 @@ if __name__ == "__main__":
     num_of_failures = 0
     failure_list = []
     if MP:
-        pool = Pool(processes=cpu_count())
+        pool = Pool(processes=cpu_count()*2)
         struct_list = []
         for i in range(len(msg_files)):
             struct_list.append([msg_files[i], num_of_failures, failure_list])
