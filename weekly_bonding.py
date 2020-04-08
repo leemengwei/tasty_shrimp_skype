@@ -4,8 +4,8 @@ from IPython import embed
 import re
 import glob
 import tqdm
-import extract_msg
-#import openpyxl
+from extract_msg import Message
+import olefile
 import xlrd
 import yaml
 from collections import Counter
@@ -79,6 +79,14 @@ README = \
 *************************************
 '''
 
+def olefile_read(msg_file_path):
+    msg = olefile.OleFileIO(msg_file_path)
+    b = msg.exists('__substg1.0_1000001E')
+    with msg.openstream('__substg1.0_1000001E' if b else '__substg1.0_1000001F') as f:
+        msg_body = f.read()
+    msg.close()
+    return msg_body.decode()   #TODO: 这里是否有回复？？ 此时回复是否有法判断？
+
 def get_vessels_repository_and_patterns():
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
     vessels_repository_raw = []
@@ -125,22 +133,39 @@ def get_vessels_repository_and_patterns():
 def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
     try:
-        msg = extract_msg.Message(f)
-        msg_sender = msg.sender
-        msg_subject = msg.subject
-        msg_body = msg.body
-        msg_content = msg_subject + msg_body  #Content include all
+        msg = Message(f)
     except Exception as e:
-        if DEBUG:print("Failed on extract_msg!",e)
-        return False, False, False
+        try:
+            msg_body = olefile_read(f)
+            return 'Wont have sender', 'Wont have subject', msg_content
+        except:
+            if DEBUG:print("Failed on extract_msg!",e)
+            return False, False, False
+    try:
+        msg_sender = msg.sender
+    except:
+        msg_sender = 'Cant get sender'
+    try:
+        msg_subject = msg.subject
+    except:
+        msg_subject = 'Cant get subject'
+    try:
+        msg_body = msg.body
+    except:
+        msg_body = 'Cant get body'
+    if msg_sender is None:
+        msg_sender = 'Cant get sender'
+    if msg_subject is None:
+        msg_subject = 'Cant get subject'
+    if msg_body is None:
+        msg_body = 'Cant get body'
+    msg_content = msg_subject + msg_body  #Content include all
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
     if DEBUG:
         print("In file %s: "%f)
-        #print("msg_subj:", msg_content)
-        #print(msg_content[:50])
     return msg_sender, msg_subject, msg_content
 
 def retrieve_sender_email(msg_sender):
@@ -218,15 +243,14 @@ def retrieve_vessel(msg_content, vessels_patterns):
             for j in i:
                 if j != '' and j not in redudant_name:
                     vessels_name.append(j.strip(' '))
+    for idx,this_vessel_name in enumerate(vessels_name):
+        vessels_name[idx] = this_vessel_name.upper()
     order = vessels_name.index
     vessels_name = list(set(vessels_name))
     vessels_name.sort(key=order)
-    for idx,this_vessel_name in enumerate(vessels_name):
-        vessels_name[idx] = this_vessel_name.upper()
     if DEBUG:
         print("Got vessels name:")
         print(vessels_name)
-    #TODO: To fix MV CORAL and MV CORAL GEM     FIXED 04 01
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -237,23 +261,23 @@ def retrieve_skype(msg_content):
     #    print(msg_content[tt.span()[0]-min(25,tt.span()[0]-1):tt.span()[1]+25])
     patterns = []
     #skype id : xxx
-    patterns.append('skype \(live\)[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('msn/skype[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skype/msn[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skypeid[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skype id[ ]?[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('\(skypeid\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('\(skype id\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skype id\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skypeid\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
-    patterns.append('skype[ ]*[:]?[]*\+[ ]?([ 0-9a-z_\-:\.@]+)')
-    patterns.append('\(skype\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype \(live\)[ ]?[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('msn/skype[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skype/msn[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skypeid[ ]?[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skype id[ ]?[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('\(skypeid\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('\(skype id\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skype id\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skypeid\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
+    patterns.append('skype[ ]*[:]?[]*\+[ ]?([0-9a-z_\-:\.@]+)')
+    patterns.append('\(skype\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
     patterns.append('([0-9a-z_\-:\.@]+)\(skypeid\)')
     patterns.append('([0-9a-z_\-:\.@]+)\(skype id\)')
     patterns.append('([0-9a-z_\-:\.@]+)\(skype\)')
-    patterns.append('skype\)[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype\)[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
     #Skype : xxxx
-    patterns.append('skype[ ]*[:]?[ ]*([ 0-9a-z_\-:\.@]+)')
+    patterns.append('skype[ ]*[:]?[ ]*([0-9a-z_\-:\.@]+)')
     all_patterns = '|'.join(patterns)
     c = re.compile(all_patterns, re.I)
     skypes_id_raw = c.findall(msg_content)
@@ -289,7 +313,8 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
 
 def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
     pic_skype = None
-    if len(vessels_name)==1 and len(skypes_id)==1:
+    #print(vessels_name, skypes_id)
+    if len(vessels_name)>=1 and len(skypes_id)==1:
         if DEBUG:print('Got A pic skype for %s %s'%(vessels_name, skypes_id))
         pic_skype = skypes_id[0]
     return pic_skype
@@ -317,12 +342,11 @@ def get_counterparts_repository():
 
 def solve_one_msg(struct):
     global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
-    this_msg_file, num_of_failures, failure_list = struct[0], struct[1], struct[2]
+    this_msg_file, FAILURE_LIST = struct[0], struct[1]
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
-        num_of_failures += 1
-        failure_list.append(this_msg_file)
+        FAILURE_LIST.append(this_msg_file)
         #return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
         return
     sender_email = retrieve_sender_email(msg_sender)
@@ -386,6 +410,7 @@ if __name__ == "__main__":
         SENDER_SKYPES_BLOB = {}
         MV_SKYPE_BLOB = {}
         TRASH_SENDER = []
+        FAILURE_LIST = []
     else:   #MP    
         manager = Manager()
         MV_SENDER_BLOB = manager.dict()
@@ -393,6 +418,7 @@ if __name__ == "__main__":
         SENDER_SKYPES_BLOB = manager.dict()
         MV_SKYPE_BLOB = manager.dict()
         TRASH_SENDER = manager.list()
+        FAILURE_LIST = manager.list()
 
     if FROM_SCRATCH:
         print("Run from scratch, moving msgs to work place...")
@@ -447,13 +473,11 @@ if __name__ == "__main__":
     #embed()
 
     #Loop over msgs:
-    num_of_failures = 0
-    failure_list = []
     if MP:
         pool = Pool(processes=cpu_count()*2)
         struct_list = []
         for i in range(len(msg_files)):
-            struct_list.append([msg_files[i], num_of_failures, failure_list])
+            struct_list.append([msg_files[i], FAILURE_LIST])
         rs = pool.map_async(solve_one_msg, struct_list)
         while (True):
           if (rs.ready()): break
@@ -462,14 +486,14 @@ if __name__ == "__main__":
           time.sleep(0.5)
     else:
         for this_msg_file in tqdm.tqdm(msg_files):
-            struct_this = [this_msg_file, num_of_failures, failure_list]
+            struct_this = [this_msg_file, FAILURE_LIST]
             #MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
             solve_one_msg(struct_this)
 
     #for Mailboxes, Blacklist and -skype:
     for sender in SENDER_MAILBOXES_BLOB.keys():
         SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES))
-    print("Failures %s:"%num_of_failures)
+    print("Failures %s:"%len(FAILURE_LIST))
 
     #embed()
     #Generate outputs:
