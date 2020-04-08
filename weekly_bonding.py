@@ -14,8 +14,10 @@ import argparse
 import shutil
 try:
     from multiprocessing.pool import Pool
+    from multiprocessing import Manager
+    from multiprocessing import cpu_count
     MP = True
-    print("Running parallelism...")
+    print("Running parallelism... Your PC has %s cpu core"%cpu_count())
 except Exception as e:
     print(e, "Running serial...")
     MP = False
@@ -136,11 +138,9 @@ def parse_msg(msg_file_path):
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
     if DEBUG:
-        print("|"*24)
         print("In file %s: "%f)
         #print("msg_subj:", msg_content)
         #print(msg_content[:50])
-        print("|"*30)
     return msg_sender, msg_subject, msg_content
 
 def retrieve_sender_email(msg_sender):
@@ -155,7 +155,7 @@ def retrieve_sender_email(msg_sender):
     if len(sender_email)>0:
         sender_email = sender_email[0].lower()
     else:
-        print("Error getting sender: %s"%sender_email_raw)
+        if DEBUG:print("Error getting sender: %s"%sender_email_raw)
         sender_email = ""
     return sender_email
 
@@ -316,13 +316,15 @@ def get_counterparts_repository():
     return counterparts_repository
 
 def solve_one_msg(struct):
+    global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
     this_msg_file, num_of_failures, failure_list = struct[0], struct[1], struct[2]
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
         num_of_failures += 1
         failure_list.append(this_msg_file)
-        return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER
+        #return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
+        return
     sender_email = retrieve_sender_email(msg_sender)
     if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
@@ -358,7 +360,7 @@ def solve_one_msg(struct):
         if DEBUG:
             print("This is Reply! pass")
         pass
-    return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER
+    return
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -374,11 +376,21 @@ if __name__ == "__main__":
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     TEST = ''
     #From scratch? Checkpoint?
-    MV_SENDER_BLOB = {}
-    SENDER_MAILBOXES_BLOB = {}
-    SENDER_SKYPES_BLOB = {}
-    MV_SKYPE_BLOB = {}
-    TRASH_SENDER = []
+    #global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
+    if not MP:
+        MV_SENDER_BLOB = {}
+        SENDER_MAILBOXES_BLOB = {}
+        SENDER_SKYPES_BLOB = {}
+        MV_SKYPE_BLOB = {}
+        TRASH_SENDER = []
+    else:   #MP    
+        manager = Manager()
+        MV_SENDER_BLOB = manager.dict()
+        SENDER_MAILBOXES_BLOB = manager.dict()
+        SENDER_SKYPES_BLOB = manager.dict()
+        MV_SKYPE_BLOB = manager.dict()
+        TRASH_SENDER = manager.list()
+
     if FROM_SCRATCH:
         print("Run from scratch, moving msgs to work place...")
         #os.system("mv %s/msgs/%s/consumed/*.msg %s/msgs/%s/"%(DATA_PATH_PREFIX, TEST, DATA_PATH_PREFIX, TEST))
@@ -435,7 +447,7 @@ if __name__ == "__main__":
     num_of_failures = 0
     failure_list = []
     if MP:
-        pool = Pool(processes=8)
+        pool = Pool(processes=cpu_count())
         struct_list = []
         for i in range(len(msg_files)):
             struct_list.append([msg_files[i], num_of_failures, failure_list])
@@ -445,11 +457,11 @@ if __name__ == "__main__":
           remaining = rs._number_left
           print("Waiting for", remaining, "tasks to complete...")
           time.sleep(0.5)
-        embed()  #TODO
     else:
         for this_msg_file in tqdm.tqdm(msg_files):
             struct_this = [this_msg_file, num_of_failures, failure_list]
-            MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
+            #MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
+            solve_one_msg(struct_this)
 
     #for Mailboxes, Blacklist and -skype:
     for sender in SENDER_MAILBOXES_BLOB.keys():
@@ -463,8 +475,7 @@ if __name__ == "__main__":
     output_SENDER_SKYPES = pd.DataFrame({'SENDER':list(SENDER_SKYPES_BLOB.keys()), 'SKYPES':list(SENDER_SKYPES_BLOB.values())})
     output_MV_SKYPE = pd.DataFrame({'MV':list(MV_SKYPE_BLOB.keys()), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
     output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
-    TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': TRASH_SENDER})
-    
+    TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': list(TRASH_SENDER)})
     ok = pd.DataFrame({ 'ok': list(SENDER_MAILBOXES_BLOB.keys())})
     try:
         output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
@@ -487,7 +498,6 @@ if __name__ == "__main__":
         os.rename(msg_file, tmp)
         pass
     #embed()
-
 
 
     print("All finished.")
