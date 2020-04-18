@@ -100,8 +100,18 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
 def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
    @timeout_decorator.timeout(WAIT_TIME)
    def auto_timeout_chat(message):
-       blob.chat.sendMsg(message)
-       return
+       tmp_len = 1
+       history_chats = []
+       while tmp_len>0: #check historical messages
+           tmp = blob.chat.getMsgs()
+           history_chats += tmp
+           tmp_len = len(tmp)
+       if message in str(history_chats):
+           print("Already sent,", this_id)
+           return
+       else:
+           blob.chat.sendMsg(message)
+           return
    give_up = 0
    while give_up<1: 
         give_up += 1
@@ -116,9 +126,9 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
-                #if "Response" in str(last_e):
-                #    print("Cannot receive by id:", this_id, 'due to %s'%last_e)
-                #    return
+                if "403" in str(last_e):
+                    print("Redeem 403 as successful", this_id)
+                    return sk
                 sk.conn.verifyToken(sk.conn.tokens)
         #If still can't chat for times
         print("Doing re-log in Due to: %s"%last_e)
@@ -131,10 +141,20 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 def ideal_pool_chat_by_blob(struct):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_blob_and_chat(skype_id, message):
-        print("Pool Sending to %s"%skype_id)
         blob = sk.contacts[skype_id]
         sys.stdout.flush()
-        blob.chat.sendMsg(message)
+        tmp_len = 1
+        history_chats = []
+        while tmp_len>0: #check historical messages
+            tmp = blob.chat.getMsgs()
+            history_chats += tmp
+            tmp_len = len(tmp)
+        if message in str(history_chats):
+            print("Pool Already sent,", skype_id)
+            return
+        else:
+            print("Pool Sending to %s"%skype_id)
+            blob.chat.sendMsg(message)
         #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
         #    print(Failure_on_intension)
         return
@@ -145,6 +165,10 @@ def ideal_pool_chat_by_blob(struct):
         return True
     except Exception as e:
         print("When sending %s,"%skype_id, e)
+        if '403' in str(e):
+            #print("Redeem 403 as successful", skype_id)
+            #return True
+            pass
         sys.stdout.flush()
         return False
 
@@ -165,7 +189,7 @@ def check_invalid_account(sk, all_target_people):
 @flusher
 def get_all_target_people(sk, username, additional_contacts_path, remove_contacts_path):    
     if DRY_RUN:
-        dry_target_people = open("./data/%s/mengxuan"%username, 'r').readlines()
+        dry_target_people = open("./data/%s/DRY_RUN_mengxuan"%username, 'r').readlines()
         dry_target_people = ''.join(dry_target_people).split('\n')[:-1]
         print("Returing dry:%s"%dry_target_people)
         sys.stdout.flush()
@@ -237,7 +261,7 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
     struct_list = []
     for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
         struct_list.append([i,j,k])
-    if PRESSURE_TEST:struct_list *= 50
+    if PRESSURE_TEST:struct_list *= 25
     n = 0
     while n<3 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
@@ -393,11 +417,10 @@ if __name__ == "__main__":
             for message_this in chat_messages:
                 seconds_that_passed = (datetime.datetime.now() - message_this.time).days*24*3600+(datetime.datetime.now() - message_this.time).seconds - 8*3600   #Greenwich time
                 #print('seconds_that_passed', seconds_that_passed)
-                if ("TOKEN" in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
+                if (" TOKEN " in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
                     print("Token caught")
-                    daily_report = message_this.content.replace("TOKEN",'')
+                    daily_report = message_this.content.replace(" TOKEN ",'')
                     #Send for every one:
-                    #sk = messages_wrapper_old(sk, pd_blobs, external_content = daily_report)
                     #sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
                     sk = messages_wrapper_pool(sk, username, password, all_target_people, external_content = daily_report)
                     print("Now resting ...")
