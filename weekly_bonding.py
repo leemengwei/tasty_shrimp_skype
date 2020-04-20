@@ -47,7 +47,8 @@ Skype/MSn:Fengncl@hotmail.com
 VESSELS_TESTER = \
 '''
 For MV Huayang
-MV CORAL GEM
+MV CORALGEM
+MV CORAL
 '''
 
 README = \
@@ -164,8 +165,7 @@ def parse_msg(msg_file_path):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
-    if DEBUG:
-        print("In file %s: "%f)
+    if DEBUG:print("In file %s: "%f)
     return msg_sender, msg_subject, msg_content
 
 def retrieve_sender_email(msg_sender):
@@ -174,9 +174,7 @@ def retrieve_sender_email(msg_sender):
         sender_email_raw = ' '
     pattern = re.compile('<(.*)>')
     sender_email = pattern.findall(sender_email_raw)
-    if DEBUG:
-        print("Got sender:")
-        print(sender_email)
+    if DEBUG:print("Got sender:", sender_email)
     if len(sender_email)>0:
         sender_email = sender_email[0].lower()
     else:
@@ -213,17 +211,18 @@ def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
 def judge_if_direct_counterpart(sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email, re.I)) for i in counterparts_repository])
-    if tmp.sum()==1:
+    if tmp.sum()>=1:
         direct_counterpart = True
-    elif tmp.sum()>1:
-        print("Warning multiple key words in sender address:", np.array(counterparts_repository)[np.where(tmp!=0)[0].reshape(-1,1)].tolist(), 'in', sender_email)
-        direct_counterpart = True
+    #elif tmp.sum()>1:
+    #    print("Warning multiple key words in sender address:", np.array(counterparts_repository)[np.where(tmp!=0)[0].reshape(-1,1)].tolist(), 'in', sender_email)
+    #    direct_counterpart = True
     else:
         direct_counterpart = False
     return direct_counterpart
 
 def retrieve_vessel(msg_content, vessels_patterns):
     vessels_name = []
+    msg_content = VESSELS_TESTER
     vessels_pattern_safe = vessels_patterns['safe']
     vessels_pattern_unsafe = vessels_patterns['unsafe']
     vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
@@ -248,9 +247,7 @@ def retrieve_vessel(msg_content, vessels_patterns):
     order = vessels_name.index
     vessels_name = list(set(vessels_name))
     vessels_name.sort(key=order)
-    if DEBUG:
-        print("Got vessels name:")
-        print(vessels_name)
+    if DEBUG:print("Got vessels name:", vessels_name)
     return vessels_name
 
 def retrieve_skype(msg_content):
@@ -295,18 +292,14 @@ def retrieve_skype(msg_content):
     while '' in skypes_id:skypes_id.remove('')
     for idx,this_skype_id in enumerate(skypes_id):
         skypes_id[idx] = this_skype_id.lower()
-    if DEBUG:
-        print("Got skype:")
-        print(skypes_id)
+    if DEBUG:print("Got skype:", skypes_id)
     return skypes_id
 
 def retrieve_pic_mailboxes(msg_content, sender_email):
     pattern = re.compile('([a-z0-9_\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
     pic_mailboxes  = pattern.findall(msg_content)
     pic_mailboxes += [sender_email]
-    if DEBUG:
-        print("Got mailboxes:")
-        print(pic_mailboxes)
+    if DEBUG:print("Got mailboxes:", pic_mailboxes)
     for idx,this_pic_mailbox in enumerate(pic_mailboxes):
         pic_mailboxes[idx] = this_pic_mailbox.lower()
     return pic_mailboxes
@@ -343,6 +336,7 @@ def get_counterparts_repository():
 def solve_one_msg(struct):
     global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
+    #print(this_msg_file)
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
@@ -381,11 +375,9 @@ def solve_one_msg(struct):
                 SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
         else:
             TRASH_SENDER.append(sender_email)
-            if DEBUG:
-                print("Not direct couterpart: %s"%sender_email)
+            if DEBUG:print("Not direct couterpart: %s"%sender_email)
     else:
-        if DEBUG:
-            print("This is Reply! pass")
+        if DEBUG:print("This is Reply! pass")
         pass
     return
 
@@ -498,10 +490,10 @@ if __name__ == "__main__":
     #embed()
     #Generate outputs:
     output_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
-    output_SENDER_MAILBOXES = pd.DataFrame({'SENDER':list(SENDER_MAILBOXES_BLOB.keys()), 'MAILBOXES':list(SENDER_MAILBOXES_BLOB.values())}) 
+    output_SENDER_MAILBOXES = pd.DataFrame({'SENDER':list(SENDER_MAILBOXES_BLOB.keys()), 'MAILBOXES':list(SENDER_MAILBOXES_BLOB.values())})[['SENDER','MAILBOXES']]
     output_SENDER_SKYPES = pd.DataFrame({'SENDER':list(SENDER_SKYPES_BLOB.keys()), 'SKYPES':list(SENDER_SKYPES_BLOB.values())})
     output_MV_SKYPE = pd.DataFrame({'MV':list(MV_SKYPE_BLOB.keys()), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
-    output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
+    output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})[['MV','SENDER','MAILBOXES','SKYPES','PIC_SKYPE']]
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': list(TRASH_SENDER)})
     ok = pd.DataFrame({ 'ok': list(SENDER_MAILBOXES_BLOB.keys())})
     try:

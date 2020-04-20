@@ -7,6 +7,7 @@ from email.header import Header
 from IPython import embed
 import datetime
 import pandas as pd
+import daily_bob
 
 def send_action(mail_sender, mail_receivers, subject_content, body_content):
     #MAIN:
@@ -32,7 +33,7 @@ def send_action(mail_sender, mail_receivers, subject_content, body_content):
 
     #send:
     #embed()
-    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
+    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
@@ -50,32 +51,82 @@ if __name__ == "__main__":
     print("Auto 126 emailing...")
     
     #CONFIGURATIONS:
-    MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_PIC_SKYPE_DRY_RUN.csv"
+    #Email configuration:
+    MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
     CONTENT_FILE_NAME = 'data/data_bonding_net/email_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
 
+    #Skype configuration:
+    WAIT_TIME = 55
+    username = 'mengxuan@bancosta.com'
+    password = 'Bcchina2020'
+    DRY_RUN = False
+    DRY_RUN = True
+ 
     #Get data:
     middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
-    for i in middle_bond.iterrows():
+    row_MV = {}
+    row_MSG = {}
+    row_MAILBOXES = {}
+    row_SKYPES = {}
+    row_PIC = {}
+    print("Collecting data...")
+    for row_num,i in enumerate(middle_bond.iterrows()):
         i = i[1]
         try:
-            mail_receivers = i.PIC.strip("[]'").split("', '")
+            mail_receivers = i.MAILBOXES.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
+            skypes_receivers = i.SKYPES.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
+            pic_skype_receiver = i.PIC_SKYPE.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
         except Exception as e:
             print("Skip this row when getting PIC for %s."%i.MV)
             continue
         try:
             mail_receivers.remove('')
+            skypes_receivers.remove('')
+            pic_skype_receiver.remove('')
         except:
             pass
+        row_MV[row_num] = i.MV
+        row_MAILBOXES[row_num] = mail_receivers
+        row_SKYPES[row_num] = skypes_receivers
+        row_PIC[row_num] = pic_skype_receiver
+    row_PIC = row_SKYPES
+    #print(row_MV)
+    #print(row_MAILBOXES)
+    #print(row_PIC)
+
+    #Emailing:
+    for row_num,i in enumerate(middle_bond.iterrows()):
+        this_MV = row_MV[row_num]
+        mail_receivers = row_MAILBOXES[row_num]
         if len(mail_receivers) == 0:
-            continue
-        subject_content = 'MV %s/Suitable cargo - Bancsota desk'%i.MV
-        body_content = get_body_content(CONTENT_FILE_NAME)
-        print("MV %s, Sending to %s"%(i.MV, mail_receivers))
-        send_action(mail_sender, mail_receivers, subject_content, body_content)
-    
+            pass
+        else:
+            subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
+            body_content = get_body_content(CONTENT_FILE_NAME)
+            print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
+            send_action(mail_sender, mail_receivers, subject_content, body_content)
+
+    #Skyping:
+    #Form chats content
+    for row_num in row_MV.keys():
+        row_MSG[row_num] = ["Hi is this vessel avalible?", "For MV: %s/suitable cargo"%row_MV[row_num], "Let me know if you have interest"]
+    embed()
+    sk = daily_bob.relentless_login_web_skype(username, password)
+    struct_list = []
+    for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
+        struct_list.append([i,j,k])
+    for row_num,i in enumerate(middle_bond.iterrows()):
+        this_MV = row_MV[row_num]
+        pic_skype_receiver = row_PIC[row_num]
+        if len(pic_skype_receiver) == 0:
+            pass
+        else:
+            print("*SKYPE* MV %s, Sending to %s"%(this_MV, pic_skype_receiver))
+            #send_skype()
+        
     print("All done!")
     #embed()
     
