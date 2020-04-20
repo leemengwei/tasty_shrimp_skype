@@ -8,6 +8,7 @@ from IPython import embed
 import datetime
 import pandas as pd
 import daily_bob
+import timeout_decorator
 
 def send_action(mail_sender, mail_receivers, subject_content, body_content):
     #MAIN:
@@ -41,19 +42,27 @@ def get_middle_bond(MIDDLE_FILE_NAME):
     data = pd.read_csv(MIDDLE_FILE_NAME)
     return data
 
-def get_body_content(CONTENT_FILE_NAME):
-    content = open(CONTENT_FILE_NAME, 'r').readlines()
+def get_email_content(EMAIL_FILE_NAME, this_MV):
+    subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
+    content = open(EMAIL_FILE_NAME, 'r').readlines()
     content = ''.join(content).replace('\n', '\t\n')
     content = subject_content + '\n' + content + '\n' + str(datetime.datetime.now()).split(' ')[0] 
     return content
- 
+
+def get_skype_content(SKYPE_FILE_NAME):
+    skype_contents = open(SKYPE_FILE_NAME, 'r').readlines()
+    skype_contents = ''.join(content).replace('\n', '\t\n')
+    return skype_contents
+
+
 if __name__ == "__main__":
     print("Auto 126 emailing...")
     
     #CONFIGURATIONS:
     #Email configuration:
     MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
-    CONTENT_FILE_NAME = 'data/data_bonding_net/email_content.txt'
+    EMAIL_FILE_NAME = 'data/data_bonding_net/email_content.txt'
+    SKYPE_FILE_NAME = 'data/data_bonding_net/skype_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
@@ -104,15 +113,14 @@ if __name__ == "__main__":
         if len(mail_receivers) == 0:
             pass
         else:
-            subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
-            body_content = get_body_content(CONTENT_FILE_NAME)
+            body_content = get_email_content(EMAIL_FILE_NAME, this_MV)
             print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
             send_action(mail_sender, mail_receivers, subject_content, body_content)
 
     #Skyping:
     #Form chats content
     for row_num in row_MV.keys():
-        row_MSG[row_num] = ["Hi is this vessel avalible?", "For MV: %s/suitable cargo"%row_MV[row_num], "Let me know if you have interest"]
+        row_MSG[row_num] = get_skype_content(row_MV[row_num])
     embed()
     sk = daily_bob.relentless_login_web_skype(username, password)
     struct_list = []
