@@ -19,22 +19,34 @@ def ideal_pool_chats_by_blob(struct):
     def auto_timeout_blob_and_chat(skype_id, messages):
         blob = sk.contacts[skype_id]
         if blob == None and 'live:' not in skype_id:
+            print("%s does not exisit, trying live:%s"%(skype_id, skype_id))
             blob = sk.contacts['live:'+skype_id]
         sys.stdout.flush()
         tmp_len = 1
-        history_chats = []
-        while tmp_len>0: #check historical messages
-            tmp = blob.chat.getMsgs()
-            history_chats += tmp
-            tmp_len = len(tmp)
+        try:   #for whom is not your contacts, getMsg must fail, then skip~
+            while tmp_len>0: #check historical messages
+                tmp = blob.chat.getMsgs()
+                history_chats += tmp
+                tmp_len = len(tmp)
+        except:
+            history_chats = []
         print("*SKYPE* Pool Sending to %s"%skype_id)
         for idx, message in enumerate(messages):
             if message in str(history_chats):
                 #print("*SKYPE* Pool Already sent,", idx, skype_id)
                 pass
             else:
-                blob.chat.sendMsg(message)
-                pass
+                try:   #HEHE, force try to push all msgs to he who reports 403.
+                    blob.chat.sendMsg(message)
+                except Exception as e:
+                    if '403' in str(e):
+                        print("Hehe, %s is not your contacts, while I forced to push him messages"%skype_id)
+                        try:
+                            blob.chat.sendMsg("Please add me to your contacts, or I can't reply your mannually, this msg is sent by program, THANK YOU")
+                        except:
+                            pass
+                    else:
+                        raise e
         return
 
     skype_id, messages, sk = struct[0], struct[1], struct[2]
@@ -77,7 +89,7 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
 
     #send:
     #embed()
-    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
+    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
@@ -94,7 +106,9 @@ def get_email_content(EMAIL_FILE_NAME, this_MV):
 
 def get_skype_content(SKYPE_FILE_NAME, this_MV):
     skype_contents = open(SKYPE_FILE_NAME, 'r').readlines()
-    skype_contents = ''.join(skype_contents).replace('MV_TOKEN', this_MV).split('\n\n')
+    skype_contents = ''.join(skype_contents).replace('MV_TOKEN', this_MV).split('LINE_TOKEN')
+    for idx,_ in enumerate(skype_contents):
+        skype_contents[idx] = _.strip('\n')
     return skype_contents
 
 
@@ -113,8 +127,10 @@ if __name__ == "__main__":
     mail_license = "lmx921221"  #this is not password!
     #Skype configuration:
     WAIT_TIME = 55
-    username = 'mengxuan@bancosta.com'
-    password = 'Bcchina2020'
+    #username = 'mengxuan@bancosta.com'
+    username = '18601156335'
+    #password = 'Bcchina2020'
+    password = 'lmw196411'
     sk = daily_bob.relentless_login_web_skype(username, password, WAIT_TIME=WAIT_TIME)
 
     #Get data:
@@ -144,7 +160,6 @@ if __name__ == "__main__":
         row_MAILBOXES[row_num] = mail_receivers
         row_SKYPES[row_num] = skypes_receivers
         row_PIC[row_num] = pic_skype_receiver
-    row_PIC = row_SKYPES
 
     #1) Emailing:
     print("--------NOW EMAIL--------")
@@ -173,6 +188,9 @@ if __name__ == "__main__":
     print("--------NOW SKYPE--------")
     n = 0
     pool = Pool(processes=8)
+    failed_pic = []
+    failed_rows = []
+    failed_vessels = []
     while n<3 and len(struct_list)>0:
         if n == 0:
             pass

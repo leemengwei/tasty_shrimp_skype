@@ -98,44 +98,46 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
 
 @flusher
 def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
-   @timeout_decorator.timeout(WAIT_TIME)
-   def auto_timeout_chat(message):
-       tmp_len = 1
-       history_chats = []
-       while tmp_len>0: #check historical messages
-           tmp = blob.chat.getMsgs()
-           history_chats += tmp
-           tmp_len = len(tmp)
-       if message in str(history_chats):
-           print("Already sent,", this_id)
-           return
-       else:
-           blob.chat.sendMsg(message)
-           return
-   give_up = 0
-   while give_up<1: 
-        give_up += 1
-        n = 0
-        while (n<2):
-            print("Relent chating, retry:%s"%n)
-            sys.stdout.flush()
-            n += 1
-            try:
-                auto_timeout_chat(message)
-                return sk
-            except Exception as e:
-                time.sleep(0.5)
-                last_e = e
-                if "403" in str(last_e):
-                    print("Redeem 403 as successful", this_id)
-                    return sk
-                sk.conn.verifyToken(sk.conn.tokens)
-        #If still can't chat for times
-        print("Doing re-log in Due to: %s"%last_e)
-        sk = relentless_login_web_skype(username, password, sleep=3)
-        blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
-   print("Given up on %s"%this_id)
-   return sk
+    @timeout_decorator.timeout(WAIT_TIME)
+    def auto_timeout_chat(message):
+        tmp_len = 1
+        try:   #for whom is not your contacts, getMsg must fail, then skip~
+            while tmp_len>0: #check historical messages
+                tmp = blob.chat.getMsgs()
+                history_chats += tmp
+                tmp_len = len(tmp)
+        except:
+            history_chats = []
+        if message in str(history_chats):
+            print("Already sent,", this_id)
+            return
+        else:
+            blob.chat.sendMsg(message)
+            return
+    give_up = 0
+    while give_up<1: 
+         give_up += 1
+         n = 0
+         while (n<2):
+             print("Relent chating, retry:%s"%n)
+             sys.stdout.flush()
+             n += 1
+             try:
+                 auto_timeout_chat(message)
+                 return sk
+             except Exception as e:
+                 time.sleep(0.5)
+                 last_e = e
+                 if "403" in str(last_e):
+                     print("Redeem 403 as successful", this_id)
+                     return sk
+                 sk.conn.verifyToken(sk.conn.tokens)
+         #If still can't chat for times
+         print("Doing re-log in Due to: %s"%last_e)
+         sk = relentless_login_web_skype(username, password, sleep=3)
+         blob, sk = relentlessly_get_blob_by_id(sk, this_id, username, password)
+    print("Given up on %s"%this_id)
+    return sk
 
 @flusher
 def ideal_pool_chat_by_blob(struct):
