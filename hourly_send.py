@@ -85,10 +85,6 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
     stp.quit()
     return
 
-def get_middle_bond(MIDDLE_FILE_NAME):
-    data = pd.read_csv(MIDDLE_FILE_NAME)
-    return data
-
 def get_email_content(EMAIL_FILE_NAME, this_MV):
     subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
     content = open(EMAIL_FILE_NAME, 'r').readlines()
@@ -113,12 +109,13 @@ if __name__ == "__main__":
     #Email configuration:
     MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv" if DRY_RUN else "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
     EMAIL_FILE_NAME = 'data/data_bonding_net/email_content.txt'
-    SKYPE_FILE_NAME = 'data/data_bonding_net/skype_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
     #Skype configuration:
     WAIT_TIME = 55
+    SKYPE_FILE_NAME = 'data/data_bonding_net/skype_content.txt'
+    WHOS_GONE = 'data/data_bonding_net/CLEAN_FIXED.csv'
     username = 'mengxuan@bancosta.com'
     #username = '18601156335'
     password = 'Bcchina2020'
@@ -126,7 +123,7 @@ if __name__ == "__main__":
     sk = daily_bob.relentless_login_web_skype(username, password, WAIT_TIME=WAIT_TIME)
 
     #Get data:
-    middle_bond = get_middle_bond(MIDDLE_FILE_NAME)
+    middle_bond = pd.read_csv(MIDDLE_FILE_NAME)
     row_MV = {}
     row_MSG = {}
     row_MAILBOXES = {}
@@ -160,6 +157,8 @@ if __name__ == "__main__":
         row_MAILBOXES[row_num] = mail_receivers
         row_SKYPES[row_num] = skypes_receivers
         row_PIC[row_num] = pic_skype_receiver
+    #Check whos gone
+    whos_gone = pd.read_csv(WHOS_GONE).SHES_GONE.tolist()
 
     #1) Emailing:
     print("--------NOW EMAIL--------")
@@ -173,7 +172,6 @@ if __name__ == "__main__":
             print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
             email_send_action(mail_sender, mail_receivers, subject_content, body_content)
 
-
     #2) Skyping:
     #Form chats content
     for row_num in row_MV.keys():
@@ -181,6 +179,7 @@ if __name__ == "__main__":
         row_MSG[row_num] = get_skype_content(SKYPE_FILE_NAME, this_MV)
     struct_list = []
     for row_num in row_PIC.keys():   #keys are 0123...
+        if this_MV in whos_gone:pass
         for this_PIC in row_PIC[row_num]:
             if len(this_PIC)>0:
                 struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
@@ -188,7 +187,7 @@ if __name__ == "__main__":
     #Skype send action:
     print("--------NOW SKYPE--------")
     n = 0
-    pool = Pool(processes=8)
+    pool = Pool(processes=4)
     failed_pic = []
     failed_rows = []
     failed_vessels = []
