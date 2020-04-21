@@ -146,11 +146,19 @@ if __name__ == "__main__":
         i = i[1]
         try:
             mail_receivers = i.MAILBOXES.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
+        except Exception as e:
+            print("Skip this row when getting EMAIL for row:%s, %s."%(row_num, i.MV), e)
+            mail_receivers = []
+        try:
             skypes_receivers = i.SKYPES.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
+        except Exception as e:
+            print("Skip this row when getting SKYPES for row:%s, %s."%(row_num, i.MV), e)
+            skypes_receivers = []
+        try:
             pic_skype_receiver = i.PIC_SKYPE.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
         except Exception as e:
-            print("Skip this row when getting PIC for %s."%i.MV)
-            continue
+            print("Skip this row when getting PIC for row:%s, %s."%(row_num, i.MV), e)
+            pic_skype_receiver = []
         try:
             mail_receivers.remove('')
             skypes_receivers.remove('')
@@ -183,7 +191,8 @@ if __name__ == "__main__":
     struct_list = []
     for row_num in row_PIC.keys():   #keys are 0123...
         for this_PIC in row_PIC[row_num]:
-            struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
+            if len(this_PIC)>0:
+                struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
 
     #Skype send action:
     print("--------NOW SKYPE--------")
