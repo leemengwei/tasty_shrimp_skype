@@ -24,7 +24,7 @@ def get_template_to_send(template_file):
     return content
 
 @flusher
-def relentless_login_web_skype(username, password, sleep=0):
+def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_login(username, password):
         sk = Skype(username, password) # connect to Skype
@@ -150,10 +150,10 @@ def ideal_pool_chat_by_blob(struct):
             history_chats += tmp
             tmp_len = len(tmp)
         if message in str(history_chats):
-            print("Pool Already sent,", skype_id)
+            print("*SKYPE* Pool Already sent,", skype_id)
             return
         else:
-            print("Pool Sending to %s"%skype_id)
+            print("*SKYPE* Pool Sending to %s"%skype_id)
             blob.chat.sendMsg(message)
         #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
         #    print(Failure_on_intension)
