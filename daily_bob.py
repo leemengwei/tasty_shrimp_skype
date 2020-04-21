@@ -45,14 +45,14 @@ def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
                 print("Force login again...", n)
 
 @flusher
-def relentlessly_get_blob_by_id(sk, this_id, username, password):
+def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_getblob(sk, this_id):
         blob = sk.contacts[this_id]
         return blob
     while 1:
         n = 0
-        while (n<3):
+        while (n<10):
             n += 1
             print("Relent getting blob %s, retry:%s"%(this_id, n))
             sys.stdout.flush()
@@ -60,7 +60,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password):
                 blob = auto_timeout_getblob(sk, this_id)
                 return blob, sk
             except Exception as e:
-                time.sleep(0.5)
+                time.sleep(10)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
         print("Doing re-log (get blob) in Due to: %s"%last_e)

@@ -14,13 +14,15 @@ import sys
 import numpy as np
 import time
 
+
 def ideal_pool_chats_by_blob(struct):
-    @timeout_decorator.timeout(WAIT_TIME*2)
-    def auto_timeout_blob_and_chat(skype_id, messages):
-        blob = sk.contacts[skype_id]
+    skype_id, messages, sk = struct[0], struct[1], struct[2]
+    @timeout_decorator.timeout(WAIT_TIME)
+    def auto_timeout_blob_and_chat(sk, skype_id, messages):
+        blob, sk = daily_bob.relentlessly_get_blob_by_id(sk, skype_id, username, password)
         if blob == None and 'live:' not in skype_id:
             print("%s does not exisit, trying live:%s"%(skype_id, skype_id))
-            blob = sk.contacts['live:'+skype_id]
+            blob, sk = daily_bob.relentlessly_get_blob_by_id(sk, "live:"+skype_id, username, password)
         sys.stdout.flush()
         tmp_len = 1
         try:   #for whom is not your contacts, getMsg must fail, then skip~
@@ -38,33 +40,22 @@ def ideal_pool_chats_by_blob(struct):
             else:
                 try:   #HEHE, force try to push all msgs to he who reports 403.
                     blob.chat.sendMsg(message)
+                    time.sleep(0.5)
                 except Exception as e:
                     if '403' in str(e):
                         print("Hehe, %s is not your contacts, while I forced to push him messages"%skype_id)
-                        try:
-                            #blob.chat.sendMsg("Please add me to your contacts, or I can't reply your mannually, this msg is sent by program, THANK YOU")
-                            pass
-                        except:
-                            pass
                     else:
                         raise e
         return
 
-    skype_id, messages, sk = struct[0], struct[1], struct[2]
     try:
-        auto_timeout_blob_and_chat(skype_id, messages)
+        auto_timeout_blob_and_chat(sk, skype_id, messages)
         print("Okay", skype_id)
         return True
     except Exception as e:
         print("When sending %s,"%skype_id, e)
-        if '403' in str(e):
-            #print("Redeem 403 as successful", skype_id)
-            #return True
-            pass
         sys.stdout.flush()
         return False
-
-
 
 def email_send_action(mail_sender, mail_receivers, subject_content, body_content):
     #MAIN:
