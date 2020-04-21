@@ -143,7 +143,7 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 def ideal_pool_chat_by_blob(struct):
     skype_id, message, sk = struct[0], struct[1], struct[2]
     @timeout_decorator.timeout(WAIT_TIME)
-    def auto_timeout_blob_and_chat(skype_id, message):
+    def auto_timeout_blob_and_chat(sk, skype_id, message):
         blob, sk = relentlessly_get_blob_by_id(sk, skype_id, username, password)
         sys.stdout.flush()
         tmp_len = 1
@@ -162,7 +162,7 @@ def ideal_pool_chat_by_blob(struct):
         #    print(Failure_on_intension)
         return
     try:
-        auto_timeout_blob_and_chat(skype_id, message)
+        auto_timeout_blob_and_chat(sk, skype_id, message)
         print("Okay", skype_id)
         return True
     except Exception as e:
