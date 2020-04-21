@@ -128,10 +128,10 @@ if __name__ == "__main__":
     mail_license = "lmx921221"  #this is not password!
     #Skype configuration:
     WAIT_TIME = 55
-    #username = 'mengxuan@bancosta.com'
-    username = '18601156335'
-    #password = 'Bcchina2020'
-    password = 'lmw196411'
+    username = 'mengxuan@bancosta.com'
+    #username = '18601156335'
+    password = 'Bcchina2020'
+    #password = 'lmw196411'
     sk = daily_bob.relentless_login_web_skype(username, password, WAIT_TIME=WAIT_TIME)
 
     #Get data:
