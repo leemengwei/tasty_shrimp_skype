@@ -42,7 +42,8 @@ def ideal_pool_chats_by_blob(struct):
                     if '403' in str(e):
                         print("Hehe, %s is not your contacts, while I forced to push him messages"%skype_id)
                         try:
-                            blob.chat.sendMsg("Please add me to your contacts, or I can't reply your mannually, this msg is sent by program, THANK YOU")
+                            #blob.chat.sendMsg("Please add me to your contacts, or I can't reply your mannually, this msg is sent by program, THANK YOU")
+                            pass
                         except:
                             pass
                     else:
@@ -89,7 +90,7 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
 
     #send:
     #embed()
-    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
+    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
