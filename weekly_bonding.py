@@ -174,12 +174,12 @@ def retrieve_sender_email(msg_sender):
         sender_email_raw = ' '
     pattern = re.compile('<(.*)>')
     sender_email = pattern.findall(sender_email_raw)
-    if DEBUG:print("Got sender:", sender_email)
     if len(sender_email)>0:
         sender_email = sender_email[0].lower()
     else:
         if DEBUG:print("Error getting sender: %s"%sender_email_raw)
         sender_email = ""
+    if DEBUG:print("Got sender:", sender_email)
     return sender_email
 
 def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
@@ -222,7 +222,6 @@ def judge_if_direct_counterpart(sender_email, counterparts_repository):
 
 def retrieve_vessel(msg_content, vessels_patterns):
     vessels_name = []
-    msg_content = VESSELS_TESTER
     vessels_pattern_safe = vessels_patterns['safe']
     vessels_pattern_unsafe = vessels_patterns['unsafe']
     vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
@@ -305,7 +304,7 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
     return pic_mailboxes
 
 def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
-    pic_skype = None
+    pic_skype = []
     #print(vessels_name, skypes_id)
     if len(vessels_name)>=1 and len(skypes_id)==1:
         if DEBUG:print('Got A pic skype for %s %s'%(vessels_name, skypes_id))
@@ -313,15 +312,12 @@ def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
     return pic_skype
 
 def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
-    blob = {'MV':[], 'SENDER':sender_email, 'SKYPES':[], 'MAILBOXES':[]}
-    if (len(vessels_name)+len(skypes_id))==0:
-        pass
-    else:
-        blob['MV'] = vessels_name
-        blob['SKYPES'] = skypes_id
-        blob['MAILBOXES'] = pic_mailboxes
-        blob['PIC_SKYPE'] = pic_skype
-        #print(yaml.dump(blob))
+    blob = {}
+    blob['MV'] = vessels_name
+    blob['SENDER'] = sender_email
+    blob['SKYPES'] = skypes_id
+    blob['MAILBOXES'] = pic_mailboxes
+    blob['PIC_SKYPE'] = pic_skype
     return blob
 
 def get_counterparts_repository():
@@ -345,37 +341,45 @@ def solve_one_msg(struct):
         return
     sender_email = retrieve_sender_email(msg_sender)
     if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
+        vessels_name = retrieve_vessel(msg_content, vessels_patterns)
+        if len(vessels_name)==0:return
+        skypes_id = retrieve_skype(msg_content)
+        pic_skype = retrieve_pic_skype(msg_content, vessels_name, skypes_id)
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
-            vessels_name = retrieve_vessel(msg_content, vessels_patterns)
-            skypes_id = retrieve_skype(msg_content)
             pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
-            pic_skype = retrieve_pic_skype(msg_content, vessels_name, skypes_id)
-            blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
-            #PARSE ShARED CORE BLOB,
-            #SUBSTUTIVE:
-            for mv in blob['MV']:
+        else:   #When not direct counterpart
+            sender_email = 'BROKER_SENDER'
+            skypes_id = ['BROKER_SKYPES']
+            pic_mailboxes = ['BROKER_MAILBOXES']
+        blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
+        #Now that BLOB is here anyway, decide what to do:
+        #SUBSTUTIVE:
+        for mv in blob['MV']:
+            if blob['SENDER'] == ['BROKER_SENDER'] and mv in MV_SENDER_BLOB.keys():  #Non-direct will give ['BROKER_SENDER'].
+                pass
+            else:
                 MV_SENDER_BLOB[mv] = blob['SENDER'] 
-            for mv in blob['MV']:
-                if blob['PIC_SKYPE'] is None and mv in MV_SKYPE_BLOB.keys():  
-                    pass   #Leave it along, it already has pic, and it's now None, so skip.
-                else:
-                   MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'] #Update pic only when actually found and is not None
-            #ACCUMULATIVE:
-            sender = blob['SENDER']
-            #embed()
-            if sender in SENDER_MAILBOXES_BLOB.keys():
-                SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
-                SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
+        for mv in blob['MV']:
+            if blob['SENDER'] == ['BROKER_SENDER'] and mv in MV_SKYPE_BLOB.keys():   #JUDGE IF GIVEN BY SHIT BROKER USING ITS SENDER TOKEN
+                pass   #Leave it along, it already has pic, and it's now give by shit broker, so skip.
             else:
-                SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
-            if sender in SENDER_SKYPES_BLOB.keys():
-                SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
-                SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
-            else:
-                SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
+               MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'] #Update pic only when actually found and is not given by shit broker 
+        #ACCUMULATIVE:
+        sender = blob['SENDER']
+        #Worryring about shit broker? Will use as key, so let it be~
+        if sender in SENDER_MAILBOXES_BLOB.keys():
+            SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
+            SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
         else:
-            TRASH_SENDER.append(sender_email)
-            if DEBUG:print("Not direct couterpart: %s"%sender_email)
+            SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
+        if sender in SENDER_SKYPES_BLOB.keys():
+            SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
+            SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
+        else:
+            SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
+        #else:
+            #TRASH_SENDER.append(sender_email)
+            #if DEBUG:print("Not direct couterpart: %s"%sender_email)
     else:
         if DEBUG:print("This is Reply! pass")
         pass

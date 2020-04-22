@@ -1,8 +1,15 @@
-Hi is this vessel avalible?
+sir, for MV_TOKEN
 LINE_TOKEN
-For MV: MV_TOKEN/suitable cargo blablabla. Blablabla1, blablabla2, blablabla3....................................~!@#$%^&*(),./\`1234567890;'[]{}<>?.........ABCDEFG END.
-DATE 2002020002020202000200
-DWT 304t80597059090
-MVMVMVMVMVMVMVMVMVMMVMVMVMMVMVMVMVMVMVMVMMVMVMVMVMVM end.
+(Remain)House ACCT:Firm
+
+ACC BULK TRADING 
+55000 MIN / 60500 MAX COAL 
+richards bay / karachi pibt
+scale load / 15000 sc 
+5/14 may   
+3,75 ADC + 1,25 BC
+
+
+Any news from you ? Tsk
 LINE_TOKEN
-Let me know if you have , Bye.
+- Just need US $7 dols to fix, as brk try tick more.

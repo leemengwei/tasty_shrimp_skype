@@ -81,7 +81,7 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
 
     #send:
     #embed()
-    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
+    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 

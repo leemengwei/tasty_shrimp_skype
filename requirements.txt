@@ -7,4 +7,3 @@ tqdm
 timeout_decorator
 xlrd
 PyYAML
-multiprocessing
