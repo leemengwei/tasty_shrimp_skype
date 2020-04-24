@@ -38,6 +38,7 @@ def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
             time.sleep(sleep)
             try:
                 sk = auto_timeout_login(username, password) # connect to Skype
+                print("LOGGED IN.")
                 return sk
             except Exception as e:
                 time.sleep(1)
@@ -46,14 +47,14 @@ def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
-    @timeout_decorator.timeout(3)
+    @timeout_decorator.timeout(7)
     def auto_timeout_getblob(sk, this_id):
-        print('for 3 sec', this_id)
+        print('for 7 sec', this_id)
         blob = sk.contacts[this_id]
         return blob
     while 1:
         n = 0
-        while (n<100):
+        while (n<10):
             n += 1
             sys.stdout.flush()
             print("Relent getting blob %s, retry:%s"%(this_id, n))
@@ -63,7 +64,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
                 return blob, sk
             except Exception as e:
                 print("RE-verifying token,", this_id, 'Due to:', e)
-                time.sleep(1)
+                time.sleep(5)
                 last_e = e
                 #sk.conn.verifyToken(sk.conn.tokens)
         print("Doing re-log (get blob) in Due to: %s"%last_e)
@@ -273,10 +274,10 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_name = np.array(struct_list)[:,0].tolist()
-            print("Remaining (retrying on):", failed_name, n)
+            print("Remaining (retrying on %s):"%len(failed_name), failed_name, n)
             time.sleep(WAIT_TIME)
-            sk = relentless_login_web_skype(username, password)
-            sk.conn.verifyToken(sk.conn.tokens)
+            #sk = relentless_login_web_skype(username, password)
+            #sk.conn.verifyToken(sk.conn.tokens)
             for _struct_ in struct_list:
                 _struct_[-1] = sk      #Renew sk for pools after login
             if len(struct_list)<30:
@@ -368,7 +369,7 @@ if __name__ == "__main__":
     #PARSE_FROM_ZERO = True
     DRY_RUN = False
     #DRY_RUN = True
-    RESTART_AT = 250
+    RESTART_AT = 0
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -410,8 +411,8 @@ if __name__ == "__main__":
 
     #Parse together:
     pd_blobs = parse_infos(sk, all_target_people, template_contents, username, password)
-    #embed()
-    #sys.exit()
+    embed()
+    sys.exit()
 
     #Wait signal:
     commander_ids = ['live:mengxuan_9', 'live:892bfe64f9296876', me_id]

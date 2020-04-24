@@ -482,7 +482,7 @@ if __name__ == "__main__":
     #Loop over msgs:
     blobs = []
     if MP:
-        pool = Pool(processes=cpu_count()*2)
+        pool = Pool(processes=cpu_count()*8)
         struct_list = []
         for i in range(len(msg_files)):
             struct_list.append([msg_files[i], FAILURE_LIST])
