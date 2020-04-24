@@ -335,20 +335,19 @@ def get_counterparts_repository():
     return counterparts_repository
 
 def solve_one_msg(struct):
-    global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
+    blob = {}
+    global TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
-    print(this_msg_file)
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
         FAILURE_LIST.append(this_msg_file)
-        #return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
-        return
+        return blob
     #Now start:
     sender_email = retrieve_sender_email(msg_sender)
     if judge_if_is_not_REply_or_others(msg_subject, msg_content)==True:
         vessels_name = retrieve_vessel(msg_content, vessels_patterns)
-        if len(vessels_name)==0:return
+        if len(vessels_name)==0:return blob
         skypes_id = retrieve_skype(msg_content)
         pic_skype = retrieve_pic_skype(msg_content, vessels_name, skypes_id)
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
@@ -359,6 +358,17 @@ def solve_one_msg(struct):
             pic_mailboxes = ['_BROKER_MAILBOXES_']
             pic_skype += ['_BROKER_TOKEN_']   #Now len=1 or 2 for shit broker's msg
         blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
+    else:
+        if DEBUG:print("This is Reply or with trashes! pass")
+    return blob
+
+def concat_blobs_through_history(blobs):
+    MV_SENDER_BLOB = {}
+    SENDER_MAILBOXES_BLOB = {}
+    SENDER_SKYPES_BLOB = {}
+    MV_SKYPE_BLOB = {}
+    for blob in blobs:
+        if blob == {}:continue
         #Now that BLOB is here anyway, decide what to do:
         #SUBSTUTIVE: (for sender and pic_skype)
         for mv in blob['MV']:
@@ -393,13 +403,7 @@ def solve_one_msg(struct):
             SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
         else:
             SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
-        #else:
-            #TRASH_SENDER.append(sender_email)
-            #if DEBUG:print("Not direct couterpart: %s"%sender_email)
-    else:
-        if DEBUG:print("This is Reply or with trashes! pass")
-        pass
-    return
+    return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB
 
 if __name__ == "__main__":
     print("Start principle net...")
@@ -415,20 +419,11 @@ if __name__ == "__main__":
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     TEST = ''
     #From scratch? Checkpoint?
-    #global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
     if not MP:
-        MV_SENDER_BLOB = {}
-        SENDER_MAILBOXES_BLOB = {}
-        SENDER_SKYPES_BLOB = {}
-        MV_SKYPE_BLOB = {}
         TRASH_SENDER = []
         FAILURE_LIST = []
     else:   #MP    
         manager = Manager()
-        MV_SENDER_BLOB = manager.dict()
-        SENDER_MAILBOXES_BLOB = manager.dict()
-        SENDER_SKYPES_BLOB = manager.dict()
-        MV_SKYPE_BLOB = manager.dict()
         TRASH_SENDER = manager.list()
         FAILURE_LIST = manager.list()
 
@@ -485,6 +480,7 @@ if __name__ == "__main__":
     #embed()
 
     #Loop over msgs:
+    blobs = []
     if MP:
         pool = Pool(processes=cpu_count()*2)
         struct_list = []
@@ -496,11 +492,14 @@ if __name__ == "__main__":
           remaining = rs._number_left
           print("Waiting for", remaining, "tasks to complete...")
           time.sleep(0.5)
+        blobs = rs.get()   #HISTORY ORDER IS WITHIN!! VERY CONVINIENT
     else:
         for this_msg_file in tqdm.tqdm(msg_files):
             struct_this = [this_msg_file, FAILURE_LIST]
-            #MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
-            solve_one_msg(struct_this)
+            blob = solve_one_msg(struct_this)
+            blobs += [blob]
+    #Loop over history:
+    MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB = concat_blobs_through_history(blobs)
 
     #POSTPROCESSING:
     #for pic_skype, -TOKEN
