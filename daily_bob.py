@@ -55,16 +55,17 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
         n = 0
         while (n<100):
             n += 1
-            print("Relent getting blob %s, retry:%s"%(this_id, n))
             sys.stdout.flush()
+            print("Relent getting blob %s, retry:%s"%(this_id, n))
             try:
+                print("auto time out")
                 blob = auto_timeout_getblob(sk, this_id)
                 return blob, sk
             except Exception as e:
-                print("RE-verifying token,", this_id)
+                print("RE-verifying token,", this_id, 'Due to:', e)
                 time.sleep(1)
                 last_e = e
-                sk.conn.verifyToken(sk.conn.tokens)
+                #sk.conn.verifyToken(sk.conn.tokens)
         print("Doing re-log (get blob) in Due to: %s"%last_e)
         sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
@@ -91,7 +92,7 @@ def relentlessly_get_commander_message(sk, commander_id, username, password):
             except Exception as e:
                 time.sleep(0.5)
                 last_e = e
-                sk.conn.verifyToken(sk.conn.tokens)
+                #sk.conn.verifyToken(sk.conn.tokens)
                 #if "Response" in str(last_e) and '40' in str(last_e):
                 #    print("Cannot get MSG by id:", commander_id, 'due to %s'%last_e)
                 #    return []
@@ -133,7 +134,7 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
                  if "403" in str(last_e):
                      print("Redeem 403 as successful", this_id)
                      return sk
-                 sk.conn.verifyToken(sk.conn.tokens)
+                 #sk.conn.verifyToken(sk.conn.tokens)
          #If still can't chat for times
          print("Doing re-log in Due to: %s"%last_e)
          sk = relentless_login_web_skype(username, password, sleep=3)
@@ -261,7 +262,7 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=3)
+    pool = Pool(processes=8)
     struct_list = []
     for i,j,k in zip(all_target_people[RESTART_AT:], ([external_content]*len(all_target_people))[RESTART_AT:], ([sk]*len(all_target_people))[RESTART_AT:]):
         struct_list.append([i,j,k])
@@ -367,7 +368,7 @@ if __name__ == "__main__":
     #PARSE_FROM_ZERO = True
     DRY_RUN = False
     #DRY_RUN = True
-    RESTART_AT = 115
+    RESTART_AT = 250
     
     if PRESSURE_TEST:
         DRY_RUN = True
@@ -409,6 +410,7 @@ if __name__ == "__main__":
 
     #Parse together:
     pd_blobs = parse_infos(sk, all_target_people, template_contents, username, password)
+    #embed()
     #sys.exit()
 
     #Wait signal:
