@@ -46,13 +46,14 @@ def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
-    @timeout_decorator.timeout(WAIT_TIME)
+    @timeout_decorator.timeout(3)
     def auto_timeout_getblob(sk, this_id):
+        print('for 3 sec', this_id)
         blob = sk.contacts[this_id]
         return blob
     while 1:
         n = 0
-        while (n<10):
+        while (n<100):
             n += 1
             print("Relent getting blob %s, retry:%s"%(this_id, n))
             sys.stdout.flush()
@@ -60,7 +61,8 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
                 blob = auto_timeout_getblob(sk, this_id)
                 return blob, sk
             except Exception as e:
-                time.sleep(10)
+                print("RE-verifying token,", this_id)
+                time.sleep(1)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
         print("Doing re-log (get blob) in Due to: %s"%last_e)
@@ -142,13 +144,14 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 @flusher
 def ideal_pool_chat_by_blob(struct):
     skype_id, message, sk = struct[0], struct[1], struct[2]
-    @timeout_decorator.timeout(WAIT_TIME)
+    @timeout_decorator.timeout(10)
     def auto_timeout_blob_and_chat(sk, skype_id, message):
         blob, sk = relentlessly_get_blob_by_id(sk, skype_id, username, password)
         sys.stdout.flush()
         tmp_len = 1
         history_chats = []
         while tmp_len>0: #check historical messages
+            print("Getting msg", skype_id)
             tmp = blob.chat.getMsgs()
             history_chats += tmp
             tmp_len = len(tmp)
@@ -237,7 +240,6 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
     else:
         pd_blobs_read = pd.read_csv("data/%s/contacts_profile.csv"%username)
         missed_targets = list(set(list(all_target_people))-set(list(pd_blobs_read.id)))
-        surplus_targets = list(set(list(pd_blobs_read.id))-set(list(all_target_people)))
         data = {'id':missed_targets, 'name':None, 'location':None, 'language':None, 'avatar':None, 'mood':None, 'phones':None, 'birthday':None, 'authorised':None, 'blocked':None, 'favourite':None, "contents":None, "chat_times_sent":0, 'times':None, 'misc':None}
         pd_blobs_missed = pd.DataFrame(data)
         print("Updating misses:", missed_targets)
@@ -259,9 +261,9 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=8)
+    pool = Pool(processes=3)
     struct_list = []
-    for i,j,k in zip(all_target_people, [external_content]*len(all_target_people), [sk]*len(all_target_people)):
+    for i,j,k in zip(all_target_people[RESTART_AT:], ([external_content]*len(all_target_people))[RESTART_AT:], ([sk]*len(all_target_people))[RESTART_AT:]):
         struct_list.append([i,j,k])
     if PRESSURE_TEST:struct_list *= 25
     n = 0
@@ -362,9 +364,10 @@ if __name__ == "__main__":
     CHECK_CONTACTS_VALID = False
     #CHECK_CONTACTS_VALID = True
     PARSE_FROM_ZERO = False
-    PARSE_FROM_ZERO = True
+    #PARSE_FROM_ZERO = True
     DRY_RUN = False
     #DRY_RUN = True
+    RESTART_AT = 115
     
     if PRESSURE_TEST:
         DRY_RUN = True
