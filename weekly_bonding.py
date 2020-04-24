@@ -135,36 +135,38 @@ def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
     try:
         msg = Message(f)
+        try:
+            msg_sender = msg.sender
+        except:
+            msg_sender = 'Cant get sender'
+        try:
+            msg_subject = msg.subject
+        except:
+            msg_subject = 'Cant get subject'
+        try:
+            msg_body = msg.body
+        except:
+            msg_body = 'Cant get body'
+        if msg_sender is None:
+            msg_sender = 'Cant get sender'
+        if msg_subject is None:
+            msg_subject = 'Cant get subject'
+        if msg_body is None:
+            msg_body = 'Cant get body'
     except Exception as e:
         try:
             msg_body = olefile_read(f)
-            return 'Wont have sender', 'Wont have subject', msg_content
+            msg_sender = 'Wont have sender'
+            msg_subject = 'Wont have subject'
         except:
             if DEBUG:print("Failed on extract_msg!",e)
             return False, False, False
-    try:
-        msg_sender = msg.sender
-    except:
-        msg_sender = 'Cant get sender'
-    try:
-        msg_subject = msg.subject
-    except:
-        msg_subject = 'Cant get subject'
-    try:
-        msg_body = msg.body
-    except:
-        msg_body = 'Cant get body'
-    if msg_sender is None:
-        msg_sender = 'Cant get sender'
-    if msg_subject is None:
-        msg_subject = 'Cant get subject'
-    if msg_body is None:
-        msg_body = 'Cant get body'
     msg_content = msg_subject + msg_body  #Content include all
     for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
+    msg_content = msg_content.replace('live: ', 'live:')
     if DEBUG:print("In file %s: "%f)
     return msg_sender, msg_subject, msg_content
 
@@ -213,11 +215,13 @@ def judge_if_direct_counterpart(sender_email, counterparts_repository):
     tmp = np.array([len(re.findall(i, sender_email, re.I)) for i in counterparts_repository])
     if tmp.sum()>=1:
         direct_counterpart = True
+        if DEBUG:print("It's counterparts")
     #elif tmp.sum()>1:
     #    print("Warning multiple key words in sender address:", np.array(counterparts_repository)[np.where(tmp!=0)[0].reshape(-1,1)].tolist(), 'in', sender_email)
     #    direct_counterpart = True
     else:
         direct_counterpart = False
+        if DEBUG:print("Not counterparts")
     return direct_counterpart
 
 def retrieve_vessel(msg_content, vessels_patterns):
@@ -308,7 +312,7 @@ def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
     #print(vessels_name, skypes_id)
     if len(vessels_name)>=1 and len(skypes_id)==1:
         if DEBUG:print('Got A pic skype for %s %s'%(vessels_name, skypes_id))
-        pic_skype = skypes_id[0]
+        pic_skype = skypes_id
     return pic_skype
 
 def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
@@ -318,6 +322,7 @@ def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
     blob['SKYPES'] = skypes_id
     blob['MAILBOXES'] = pic_mailboxes
     blob['PIC_SKYPE'] = pic_skype
+    if DEBUG:print(blob)
     return blob
 
 def get_counterparts_repository():
@@ -332,15 +337,16 @@ def get_counterparts_repository():
 def solve_one_msg(struct):
     global MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
-    #print(this_msg_file)
+    print(this_msg_file)
     if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
         FAILURE_LIST.append(this_msg_file)
         #return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER
         return
+    #Now start:
     sender_email = retrieve_sender_email(msg_sender)
-    if judge_if_is_not_REply_or_others(msg_subject, msg_content) is True and len(sender_email)>0:
+    if judge_if_is_not_REply_or_others(msg_subject, msg_content)==True:
         vessels_name = retrieve_vessel(msg_content, vessels_patterns)
         if len(vessels_name)==0:return
         skypes_id = retrieve_skype(msg_content)
@@ -348,22 +354,32 @@ def solve_one_msg(struct):
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
             pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
         else:   #When not direct counterpart
-            sender_email = 'BROKER_SENDER'
-            skypes_id = ['BROKER_SKYPES']
-            pic_mailboxes = ['BROKER_MAILBOXES']
+            sender_email = '_BROKER_SENDER_'
+            skypes_id = ['_BROKER_SKYPES_']
+            pic_mailboxes = ['_BROKER_MAILBOXES_']
+            pic_skype += ['_BROKER_TOKEN_']   #Now len=1 or 2 for shit broker's msg
         blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
         #Now that BLOB is here anyway, decide what to do:
-        #SUBSTUTIVE:
+        #SUBSTUTIVE: (for sender and pic_skype)
         for mv in blob['MV']:
-            if blob['SENDER'] == ['BROKER_SENDER'] and mv in MV_SENDER_BLOB.keys():  #Non-direct will give ['BROKER_SENDER'].
-                pass
-            else:
+            if mv not in MV_SENDER_BLOB.keys():
                 MV_SENDER_BLOB[mv] = blob['SENDER'] 
-        for mv in blob['MV']:
-            if blob['SENDER'] == ['BROKER_SENDER'] and mv in MV_SKYPE_BLOB.keys():   #JUDGE IF GIVEN BY SHIT BROKER USING ITS SENDER TOKEN
-                pass   #Leave it along, it already has pic, and it's now give by shit broker, so skip.
             else:
-               MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'] #Update pic only when actually found and is not given by shit broker 
+                if blob['SENDER'] == '_BROKER_SENDER_':  #Non-direct will give ['_BROKER_SENDER_'].
+                    pass
+                else:
+                    MV_SENDER_BLOB[mv] = blob['SENDER'] 
+        for mv in blob['MV']:
+            if mv not in MV_SKYPE_BLOB.keys():
+                MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE']
+            else:
+                if blob['SENDER'] == '_BROKER_SENDER_':   #JUDGE IF GIVEN BY SHIT BROKER USING ITS SENDER TOKEN
+                    if '_BROKER_TOKEN_' in MV_SKYPE_BLOB[mv] and len(blob['PIC_SKYPE'])>1:
+                        MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE']  #Shit for shit.
+                    else:
+                        pass
+                else:
+                    MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'] #Update pic only when actually found and is not given by shit broker 
         #ACCUMULATIVE:
         sender = blob['SENDER']
         #Worryring about shit broker? Will use as key, so let it be~
@@ -381,7 +397,7 @@ def solve_one_msg(struct):
             #TRASH_SENDER.append(sender_email)
             #if DEBUG:print("Not direct couterpart: %s"%sender_email)
     else:
-        if DEBUG:print("This is Reply! pass")
+        if DEBUG:print("This is Reply or with trashes! pass")
         pass
     return
 
@@ -462,7 +478,7 @@ if __name__ == "__main__":
             MV_SKYPE_BLOB[i[1].MV] = tmp
     #Will work on files:
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/%s/*.msg"%TEST)
-    msg_files = msg_files[:]
+    msg_files.sort()
     #Repos:
     counterparts_repository = get_counterparts_repository()
     vessels_repository, vessels_patterns = get_vessels_repository_and_patterns()
@@ -486,6 +502,10 @@ if __name__ == "__main__":
             #MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB, TRASH_SENDER = solve_one_msg(struct_this)
             solve_one_msg(struct_this)
 
+    #POSTPROCESSING:
+    #for pic_skype, -TOKEN
+    for mv in MV_SKYPE_BLOB.keys():
+        MV_SKYPE_BLOB[mv] = list(set(MV_SKYPE_BLOB[mv])-set(["_BROKER_TOKEN_"]))
     #for Mailboxes, Blacklist and -skype:
     for sender in SENDER_MAILBOXES_BLOB.keys():
         SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES))
@@ -501,7 +521,7 @@ if __name__ == "__main__":
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': list(TRASH_SENDER)})
     ok = pd.DataFrame({ 'ok': list(SENDER_MAILBOXES_BLOB.keys())})
     try:
-        output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)   #TODO: Too large will cause error??
+        output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)  
         output_SENDER_MAILBOXES.to_csv('output/core_SENDER_MAILBOXES.csv', index=False)
         output_SENDER_SKYPES.to_csv('output/core_SENDER_SKYPES.csv', index=False)
         output_MV_SKYPE.to_csv('output/core_MV_SKYPE.csv', index=False)
