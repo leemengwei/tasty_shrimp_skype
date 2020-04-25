@@ -363,10 +363,6 @@ def solve_one_msg(struct):
     return blob
 
 def concat_blobs_through_history(blobs):
-    MV_SENDER_BLOB = {}
-    SENDER_MAILBOXES_BLOB = {}
-    SENDER_SKYPES_BLOB = {}
-    MV_SKYPE_BLOB = {}
     for blob in blobs:
         if blob == {}:continue
         #Now that BLOB is here anyway, decide what to do:
@@ -419,6 +415,10 @@ if __name__ == "__main__":
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     TEST = ''
     #From scratch? Checkpoint?
+    MV_SENDER_BLOB = {}
+    SENDER_MAILBOXES_BLOB = {}
+    SENDER_SKYPES_BLOB = {}
+    MV_SKYPE_BLOB = {}
     if not MP:
         TRASH_SENDER = []
         FAILURE_LIST = []
