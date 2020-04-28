@@ -47,9 +47,9 @@ def relentless_login_web_skype(username, password, sleep=0, WAIT_TIME=45):
 
 @flusher
 def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
-    @timeout_decorator.timeout(7)
+    @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_getblob(sk, this_id):
-        print('for 7 sec', this_id)
+        print('Getting', this_id)
         blob = sk.contacts[this_id]
         return blob
     while 1:
@@ -66,9 +66,9 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
                 print("RE-verifying token,", this_id, 'Due to:', e)
                 time.sleep(5)
                 last_e = e
-                #sk.conn.verifyToken(sk.conn.tokens)
-        print("Doing re-log (get blob) in Due to: %s"%last_e)
-        sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
+                sk.conn.verifyToken(sk.conn.tokens)
+        #print("Doing re-log (get blob) in Due to: %s"%last_e)
+        #sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
 @flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
@@ -146,9 +146,9 @@ def max_giveup_chat_by_blob(sk, blob, message, username, password, this_id):
 @flusher
 def ideal_pool_chat_by_blob(struct):
     skype_id, message, sk = struct[0], struct[1], struct[2]
-    @timeout_decorator.timeout(10)
-    def auto_timeout_blob_and_chat(sk, skype_id, message):
-        blob, sk = relentlessly_get_blob_by_id(sk, skype_id, username, password)
+    try:
+        #blob, sk = relentlessly_get_blob_by_id(sk, skype_id, username, password)
+        blob = sk.contacts[skype_id]
         sys.stdout.flush()
         tmp_len = 1
         history_chats = []
@@ -159,15 +159,11 @@ def ideal_pool_chat_by_blob(struct):
             tmp_len = len(tmp)
         if message in str(history_chats):
             print("*SKYPE* Pool Already sent,", skype_id)
-            return
         else:
             print("*SKYPE* Pool Sending to %s"%skype_id)
             blob.chat.sendMsg(message)
         #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
         #    print(Failure_on_intension)
-        return
-    try:
-        auto_timeout_blob_and_chat(sk, skype_id, message)
         print("Okay", skype_id)
         return True
     except Exception as e:
@@ -263,21 +259,23 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=8)
+    pool = Pool(processes=4)
     struct_list = []
     for i,j,k in zip(all_target_people[RESTART_AT:], ([external_content]*len(all_target_people))[RESTART_AT:], ([sk]*len(all_target_people))[RESTART_AT:]):
         struct_list.append([i,j,k])
     if PRESSURE_TEST:struct_list *= 25
     n = 0
-    while n<3 and len(struct_list)>0:
+    while n<5 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
+        pool.join()
+        pool.close()
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_name = np.array(struct_list)[:,0].tolist()
             print("Remaining (retrying on %s):"%len(failed_name), failed_name, n)
             time.sleep(WAIT_TIME)
-            #sk = relentless_login_web_skype(username, password)
-            #sk.conn.verifyToken(sk.conn.tokens)
+            sk = relentless_login_web_skype(username, password)
+            sk.conn.verifyToken(sk.conn.tokens)
             for _struct_ in struct_list:
                 _struct_[-1] = sk      #Renew sk for pools after login
             if len(struct_list)<30:
@@ -287,8 +285,6 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
                n += 0.5
     if len(struct_list)>0:
         print("Failure (given up) struct:", failed_name)
-    pool.close()
-    pool.join()
     return sk
 
 @flusher
@@ -411,8 +407,6 @@ if __name__ == "__main__":
 
     #Parse together:
     pd_blobs = parse_infos(sk, all_target_people, template_contents, username, password)
-    embed()
-    sys.exit()
 
     #Wait signal:
     commander_ids = ['live:mengxuan_9', 'live:892bfe64f9296876', me_id]
