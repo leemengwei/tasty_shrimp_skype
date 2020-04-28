@@ -10,6 +10,7 @@ import pandas as pd
 import datetime
 import timeout_decorator
 from multiprocessing.pool import Pool
+import collections
 
 WAIT_TIME = 55 
 PRESSURE_TEST = False 
@@ -33,51 +34,60 @@ additional_contacts_path = 'data/%s/saved_contacts'%username
 remove_contacts_path = 'data/%s/removed_contacts'%username 
 template_file = "data/%s/content"%username                   
 
-bill_path = 'data/bills_listener/'
+list_path = 'data/lists_listener/'
 
 def launch(struct_list):
-    this = struct_list[0]
+    this = struct_list
     print("Bombbing!", this)
-    time.sleep(0.3)
+    time.sleep(10)
     return True
 
 class SkypePing(SkypeEventLoop):
     def __init__(self):
         print("Now preparing listener...")
-        self.reply_status = {}
-        self.num_of_bills_old = 0
-        self.bills_blob_old = {}
+        self.reply_status = collections.OrderedDict()
+        self.old_num = 0
+        self.lists_blob_old = collections.OrderedDict()
         self.he_who_replied = []
-        self.update_bills()
-        self.update_reply_status(None)
+        self.PIC_status = collections.OrderedDict()
         #Log in here:
         print("Now logging in...", username, password)
         super(SkypePing, self).__init__(username, password)
         print("Now listenning...")
 
-    def update_bills(self):
-        #Thoroughly refresh for bills info each time.
-        self.bills_blob = {}
-        time.sleep(1)
-        self.bills_now = glob.glob(bill_path+"/*.csv")
-        num_of_bills_now = len(self.bills_now)
-        if num_of_bills_now != self.num_of_bills_old:
-            print("%s bills for now..."%num_of_bills_now, self.bills_now)
-            self.num_of_bills_old = num_of_bills_now
-        #Update content over bills:
-        for this_bill in self.bills_now:
-             try:
-                self.bills_blob[this_bill] = pd.read_csv(this_bill)
-             except Exception as e:
-                print("Error reading bill,", this_bill)
-        #If modification occured:
-        if str(self.bills_blob) != str(self.bills_blob_old):
-            print("Modification Detected.", datetime.datetime.now())
-            self.bills_blob_old = self.bills_blob
-            #Immediately re-target PIC:
-            self.PICs = []
-            for this_bill in self.bills_now:
-                self.PICs += list(self.bills_blob[this_bill].PIC_SKYPE)
+    def check_demand_lists_and_update_their_status_lists(self, event):
+        #看看demand lists：
+        self.demand_lists = glob.glob(list_path+"/cargo*.csv")
+        self.demand_lists.sort()
+        #num_of_demand_lists = len(self.demand_lists)
+        #if num_of_demand_lists != self.old_num:
+        #    print("%s lists for now..."%num_of_demand_lists, self.demand_lists)
+        #    self.old_num = num_of_demand_lists
+        
+        #生成/更新对应的status lists:
+        #如果不是msg事件，直接返回：
+        if not isinstance(event, SkypeNewMessageEvent):
+            return
+        #如果是msg事件，更新一下所有lists的所有PIC的状态：
+        print('Chat event...')
+        for this_demand_list in self.demand_lists:
+            PICs = pd.read_csv(this_demand_list).PIC_SKYPE
+            PIC_status = collections.OrderedDict()
+            for this_PIC in PICs:
+                if not isinstance(this_PIC, str):continue   #试图跳过不可见的空pic
+                PIC_status[this_PIC] = True if this_PIC in event.msg.userId and event.msg.content=='cook' else False
+            #很可能已经有旧的状态表了：
+            old_status = None
+            this_status_list = list_path+'status_for_%s'%this_demand_list.split('/')[-1]
+            if os.path.exists(this_status_list):
+                old_status = pd.read_csv(this_status_list, index_col=0)  #读旧
+            now_status = pd.DataFrame({'STATUS':list(PIC_status.values())}, index=list(PIC_status.keys()))
+            if old_status is not None:
+                now_status = now_status + old_status
+            now_status.to_csv(this_status_list)   #存新
+            print(this_status_list, '(old)\n', old_status)
+            print(this_status_list, '\n', now_status)
+        #embed()
 
     def update_reply_status(self, event):
         someone = None
@@ -88,9 +98,9 @@ class SkypePing(SkypeEventLoop):
             self.he_who_replied += [someone]
             print("%s replied! Noted"%someone)
 
-    def wake_up_time(self):
+    def cook_time(self):
         now = datetime.datetime.now()
-        if now.second==9:
+        if now.second!=9:
             #print("Launcher ready, but not now, waiting...")
             return False
         else:
@@ -98,18 +108,9 @@ class SkypePing(SkypeEventLoop):
             return True
 
     def onEvent(self, event):
-        #I tried start pool outside, failed. Now can only triggered by skype event.
-        self.update_bills()
-        self.update_reply_status(event)
-        
-        if self.wake_up_time():
-            pool = Pool(processes=4)
-            struct_list = [[1],[2],[3]]
-            status = pool.map(launch, struct_list)
-            pool.close()
-            pool.join()
-
-        print("Return Listening...", datetime.datetime.now())
+        #有消息才会激活事件，根据目前挂的单更新对应的状态单
+        self.check_demand_lists_and_update_their_status_lists(event)
+        print("Listening...", datetime.datetime.now())
 
 
 if __name__ == "__main__":
