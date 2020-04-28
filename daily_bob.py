@@ -267,8 +267,8 @@ def messages_wrapper_pool(sk, username, password, all_target_people, external_co
     n = 0
     while n<5 and len(struct_list)>0:
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
-        pool.join()
         pool.close()
+        pool.join()
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_name = np.array(struct_list)[:,0].tolist()
