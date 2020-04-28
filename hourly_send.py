@@ -214,7 +214,7 @@ if __name__ == "__main__":
     #Report:
     print("\n*********Final Failures*********: (check manually, and consider run again with them)\n")
     for i in range(len(failed_rows)):
-        print(failed_rows[i], failed_vessels[i], failed_pic[i])
+        print("row:", failed_rows[i], "vessel:", failed_vessels[i], "pic_skype:", failed_pic[i])
 
 
     print("All done!")
