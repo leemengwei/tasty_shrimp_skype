@@ -12,28 +12,10 @@ import timeout_decorator
 from multiprocessing.pool import Pool
 import collections
 
-WAIT_TIME = 55 
-PRESSURE_TEST = False 
-#PRESSURE_TEST = True 
-CHECK_CONTACTS_VALID = False 
-#CHECK_CONTACTS_VALID = True 
-PARSE_FROM_ZERO = False 
-#PARSE_FROM_ZERO = True 
-DRY_RUN = False 
-#DRY_RUN = True 
-RESTART_AT = 0 
-if PRESSURE_TEST: 
-    DRY_RUN = True 
 username = '18601156335' 
 #username = 'mengxuan@bancosta.com' 
 password = 'lmw196411' 
 #password = 'Bcchina2020' 
-me_id = "live:a4333d00d55551e" 
-
-additional_contacts_path = 'data/%s/saved_contacts'%username 
-remove_contacts_path = 'data/%s/removed_contacts'%username 
-template_file = "data/%s/content"%username                   
-
 list_path = 'data/lists_listener/'
 
 def launch(struct_list):
@@ -59,10 +41,10 @@ class SkypePing(SkypeEventLoop):
         #看看demand lists：
         self.demand_lists = glob.glob(list_path+"/cargo*.csv")
         self.demand_lists.sort()
-        #num_of_demand_lists = len(self.demand_lists)
-        #if num_of_demand_lists != self.old_num:
-        #    print("%s lists for now..."%num_of_demand_lists, self.demand_lists)
-        #    self.old_num = num_of_demand_lists
+        num_of_demand_lists = len(self.demand_lists)
+        if num_of_demand_lists != self.old_num:
+            print("%s demand lists for now..."%num_of_demand_lists, self.demand_lists)
+            self.old_num = num_of_demand_lists
         
         #生成/更新对应的status lists:
         #如果不是msg事件，直接返回：
@@ -75,7 +57,8 @@ class SkypePing(SkypeEventLoop):
             PIC_status = collections.OrderedDict()
             for this_PIC in PICs:
                 if not isinstance(this_PIC, str):continue   #试图跳过不可见的空pic
-                PIC_status[this_PIC] = True if this_PIC in event.msg.userId and event.msg.content=='cook' else False
+                #PIC_status[this_PIC] = True if this_PIC in event.msg.userId and event.msg.content=='cook' else False
+                PIC_status[this_PIC] = True if this_PIC in event.msg.userId else False
             #很可能已经有旧的状态表了：
             old_status = None
             this_status_list = list_path+'status_for_%s'%this_demand_list.split('/')[-1]
@@ -83,10 +66,10 @@ class SkypePing(SkypeEventLoop):
                 old_status = pd.read_csv(this_status_list, index_col=0)  #读旧
             now_status = pd.DataFrame({'STATUS':list(PIC_status.values())}, index=list(PIC_status.keys()))
             if old_status is not None:
-                now_status = now_status + old_status
+                common_index = list(set(now_status.index) & set(old_status.index))
+                now_status.loc[common_index] = old_status.loc[common_index]|now_status.loc[common_index]
             now_status.to_csv(this_status_list)   #存新
-            print(this_status_list, '(old)\n', old_status)
-            print(this_status_list, '\n', now_status)
+            print(this_status_list.split('/')[-1], '\n', now_status, '\n')
         #embed()
 
     def update_reply_status(self, event):
@@ -112,6 +95,7 @@ class SkypePing(SkypeEventLoop):
         self.check_demand_lists_and_update_their_status_lists(event)
         print("Listening...", datetime.datetime.now())
 
+        #Cook?
 
 if __name__ == "__main__":
     print("Start")
