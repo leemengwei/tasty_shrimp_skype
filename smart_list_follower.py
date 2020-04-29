@@ -39,7 +39,7 @@ class SkypePing(SkypeEventLoop):
 
     def check_demand_lists_and_update_their_status_lists(self, event):
         #看看demand lists：
-        self.demand_lists = glob.glob(list_path+"/cargo*.csv")
+        self.demand_lists = glob.glob(list_path+"/cargo_*.csv")
         self.demand_lists.sort()
         num_of_demand_lists = len(self.demand_lists)
         if num_of_demand_lists != self.old_num:
@@ -57,6 +57,7 @@ class SkypePing(SkypeEventLoop):
             PIC_status = collections.OrderedDict()
             for this_PIC in PICs:
                 if not isinstance(this_PIC, str):continue   #试图跳过不可见的空pic
+                #Cooked or Raw?
                 #PIC_status[this_PIC] = True if this_PIC in event.msg.userId and event.msg.content=='cook' else False
                 PIC_status[this_PIC] = True if this_PIC in event.msg.userId else False
             #很可能已经有旧的状态表了：

@@ -25,13 +25,14 @@ def ideal_pool_chats_by_blob(struct):
             blob, sk = daily_bob.relentlessly_get_blob_by_id(sk, "live:"+skype_id, username, password)
         sys.stdout.flush()
         tmp_len = 1
-        try:   #for whom is not your contacts, getMsg must fail, then skip~
-            while tmp_len>0: #check historical messages
+        history_chats = []
+        while tmp_len>0: #check historical messages
+            try:   #for whom is not your contacts, getMsg must fail, then skip~
                 tmp = blob.chat.getMsgs()
-                history_chats += tmp
-                tmp_len = len(tmp)
-        except:
-            history_chats = []
+            except:
+                tmp = []
+            history_chats += tmp
+            tmp_len = len(tmp)
         print("*SKYPE* Pool Sending to %s"%skype_id)
         for idx, message in enumerate(messages):
             if message in str(history_chats):
@@ -107,13 +108,13 @@ if __name__ == "__main__":
     DRY_RUN = False
     DRY_RUN = True
     #Email configuration:
-    MIDDLE_FILE_NAME = "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv" if DRY_RUN else "data/data_bonding_net/core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
+    MIDDLE_FILE_NAME = "data/data_bonding_net/cargo_core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv" if DRY_RUN else "data/data_bonding_net/cargo_core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
     EMAIL_FILE_NAME = 'data/data_bonding_net/email_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
     #Skype configuration:
-    WAIT_TIME = 55
+    WAIT_TIME = 25
     SKYPE_FILE_NAME = 'data/data_bonding_net/skype_content.txt'
     WHOS_GONE = 'data/data_bonding_net/CLEAN_FIXED.csv'
     username = 'mengxuan@bancosta.com'
