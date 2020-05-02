@@ -40,7 +40,7 @@ def ideal_pool_chats_by_blob(struct):
                 pass
             else:
                 try:   #HEHE, force try to push all msgs to he who reports 403.
-                    blob.chat.sendMsg(message)
+                    #blob.chat.sendMsg(message)
                     time.sleep(0.5)
                 except Exception as e:
                     if '403' in str(e):
@@ -81,17 +81,15 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
     stp.login(mail_sender,mail_license)
 
     #send:
-    #embed()
     #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
-def get_email_content(EMAIL_FILE_NAME, this_MV):
-    subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
-    content = open(EMAIL_FILE_NAME, 'r').readlines()
-    content = ''.join(content).replace('\n', '\t\n')
-    content = subject_content + '\n' + content + '\n' + str(datetime.datetime.now()).split(' ')[0] 
-    return subject_content, content
+#def get_email_content(EMAIL_FILE_NAME, this_MV):
+#    content = open(EMAIL_FILE_NAME, 'r').readlines()
+#    content = ''.join(content).replace('\n', '\t\n')
+#    content = subject_content + '\n' + content + '\n' + str(datetime.datetime.now()).split(' ')[0] 
+#    return subject_content, content
 
 def get_skype_content(SKYPE_FILE_NAME, this_MV):
     skype_contents = open(SKYPE_FILE_NAME, 'r').readlines()
@@ -105,26 +103,24 @@ if __name__ == "__main__":
     print("Auto 126 Emailing and Skyping...")
     
     #CONFIGURATIONS:
-    DRY_RUN = False
-    DRY_RUN = True
     #Email configuration:
-    MIDDLE_FILE_NAME = "data/data_bonding_net/cargo_core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv" if DRY_RUN else "data/data_bonding_net/cargo_core_MV_SENDER_MAILBOXES_SKYPE_DRY_RUN.csv"
-    EMAIL_FILE_NAME = 'data/data_bonding_net/email_content.txt'
+    CARGO_FILE_NAME = "data/lists_listener/"+sys.argv[1]
+    CARGO_STATUS_FILE_NAME = "data/lists_listener/status_for_"+CARGO_FILE_NAME.split('/')[-1]
+    #EMAIL_FILE_NAME = 'data/data_bonding_net/email_content.txt'
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
     #Skype configuration:
     WAIT_TIME = 25
-    SKYPE_FILE_NAME = 'data/data_bonding_net/skype_content.txt'
-    WHOS_GONE = 'data/data_bonding_net/CLEAN_FIXED.csv'
-    username = 'mengxuan@bancosta.com'
-    #username = '18601156335'
-    password = 'Bcchina2020'
-    #password = 'lmw196411'
+    SKYPE_FILE_NAME = 'data/lists_listener/skype_content.txt'
+    #username = 'mengxuan@bancosta.com'
+    username = '18601156335'
+    #password = 'Bcchina2020'
+    password = 'lmw196411'
     sk = daily_bob.relentless_login_web_skype(username, password, WAIT_TIME=WAIT_TIME)
 
     #Get data:
-    middle_bond = pd.read_csv(MIDDLE_FILE_NAME)
+    middle_bond = pd.read_csv(CARGO_FILE_NAME)
     row_MV = {}
     row_MSG = {}
     row_MAILBOXES = {}
@@ -158,32 +154,25 @@ if __name__ == "__main__":
         row_MAILBOXES[row_num] = mail_receivers
         row_SKYPES[row_num] = skypes_receivers
         row_PIC[row_num] = pic_skype_receiver
-    #Check whos gone
-    whos_gone = pd.read_csv(WHOS_GONE).SHES_GONE.tolist()
 
-    #1) Emailing:
-    print("--------NOW EMAIL--------")
-    for row_num,i in enumerate(middle_bond.iterrows()):
-        this_MV = row_MV[row_num]
-        mail_receivers = row_MAILBOXES[row_num]
-        if len(mail_receivers) == 0:
-            pass
-        else:
-            subject_content, body_content = get_email_content(EMAIL_FILE_NAME, this_MV)
-            print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
-            email_send_action(mail_sender, mail_receivers, subject_content, body_content)
-
-    #2) Skyping:
+    #1) Skyping:
     #Form chats content
+    try:
+        status_file_content = pd.read_csv(CARGO_STATUS_FILE_NAME, index_col=0)
+    except Exception as e:
+        print("Error reading statu file %s, this file is required before sending anything in lastest version. EXITING!!"%CARGO_STATUS_FILE_NAME)
+        sys.exit()
     for row_num in row_MV.keys():
         this_MV = row_MV[row_num]
         row_MSG[row_num] = get_skype_content(SKYPE_FILE_NAME, this_MV)
     struct_list = []
     for row_num in row_PIC.keys():   #keys are 0123...
-        if this_MV in whos_gone:pass
         for this_PIC in row_PIC[row_num]:
             if len(this_PIC)>0:
-                struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
+                if status_file_content.STATUS.loc[this_PIC] == True:   #He's been replied
+                    print("Pass %s, his MV replied"%this_PIC)           #won't send him message again
+                else:
+                    struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
 
     #Skype send action:
     print("--------NOW SKYPE--------")
@@ -192,15 +181,13 @@ if __name__ == "__main__":
     failed_pic = []
     failed_rows = []
     failed_vessels = []
-    while n<3 and len(struct_list)>0:
+    while n<1 and len(struct_list)>0:
         if n == 0:
             pass
         else:
             sk = daily_bob.relentless_login_web_skype(username, password)
             sk.conn.verifyToken(sk.conn.tokens)
         status = pool.map(ideal_pool_chats_by_blob, struct_list)
-        pool.close()
-        pool.join()
         struct_list = np.array(struct_list)[np.where(np.array(status)==False)].tolist()
         if len(struct_list)>0:
             failed_pic = np.array(struct_list)[:,0].tolist()
@@ -211,12 +198,27 @@ if __name__ == "__main__":
             for _struct_ in struct_list:
                 _struct_[2] = sk      #Renew sk for pools after login
         n += 1
+    pool.close()
+    pool.join()
 
     #Report:
     print("\n*********Final Failures*********: (check manually, and consider run again with them)\n")
     for i in range(len(failed_rows)):
         print("row:", failed_rows[i], "vessel:", failed_vessels[i], "pic_skype:", failed_pic[i])
 
+    #2) Emailing for failures:
+    print("--------NOW EMAIL FOR FAILED--------")
+    for row_num,i in enumerate(middle_bond.iterrows()):
+        this_MV = row_MV[row_num]
+        if this_MV not in failed_vessels:continue
+        mail_receivers = row_MAILBOXES[row_num]
+        if len(mail_receivers) == 0:
+            pass
+        else:
+            subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
+            body_content = get_skype_content(SKYPE_FILE_NAME, this_MV)
+            print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
+            email_send_action(mail_sender, mail_receivers, subject_content, body_content)
 
     print("All done!")
     #embed()

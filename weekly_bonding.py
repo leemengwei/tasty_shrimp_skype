@@ -42,6 +42,7 @@ Skype: + Filippo.Gabutto
 SKYPE (live) mathewmohanchat
 Msn/Skype:Fengncl@hotmail.com
 Skype/MSn:Fengncl@hotmail.com
+MSN/SKYPE: Feng123@hotmail.com
 '''
 
 VESSELS_TESTER = \
@@ -133,6 +134,7 @@ def get_vessels_repository_and_patterns():
 
 def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
+    msg_sender = None
     try:
         msg = Message(f)
         try:
@@ -156,13 +158,13 @@ def parse_msg(msg_file_path):
     except Exception as e:
         try:
             msg_body = olefile_read(f)
-            msg_sender = 'Wont have sender'
+            msg_sender = 'Wont have sender' if msg_sender is None else msg_sender
             msg_subject = 'Wont have subject'
         except:
             if DEBUG:print("Failed on extract_msg!",e)
-            return False, False, False
+            return msg_sender, False, False
     msg_content = msg_subject + msg_body  #Content include all
-    for i in re.findall(r'( <mailto:[\.A-Za-z0-9\-_@:%]*> )', msg_content):
+    for i in re.findall(r'([ ]?<mailto:[\.A-Za-z0-9\-_@:%]*>[ ]?)', msg_content):
         msg_content = msg_content.replace(i, '')
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
@@ -184,7 +186,7 @@ def retrieve_sender_email(msg_sender):
     if DEBUG:print("Got sender:", sender_email)
     return sender_email
 
-def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
+def judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_subject_and_content):
     other_trashes_in_subject_and_content = '''
             failure
             rejected
@@ -203,7 +205,10 @@ def judge_if_is_not_REply_or_others(msg_subject, msg_subject_and_content):
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
     if len(re.findall('r[e]?[ply]?:', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
-        return False
+        if 'ausca' in str(sender_email).lower():   #Ausca always with RE, so let it be.
+            pass
+        else:
+            return False
     elif len(other_trashes_pattern.findall(msg_subject_and_content))>0:   #If others
         if DEBUG:print("Other trashes found:%s"%other_trashes_pattern.findall(msg_subject_and_content))
         return False
@@ -254,6 +259,7 @@ def retrieve_vessel(msg_content, vessels_patterns):
     return vessels_name
 
 def retrieve_skype(msg_content):
+    #msg_content = SKYPE_TESTER
     skypes_id = []
     #tmp = re.compile('skype', re.I)
     #tt = tmp.search(msg_content)
@@ -315,8 +321,9 @@ def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
         pic_skype = skypes_id
     return pic_skype
 
-def parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
+def parse_blob(msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
     blob = {}
+    blob['MSG_FILE'] = msg_file
     blob['MV'] = vessels_name
     blob['SENDER'] = sender_email
     blob['SKYPES'] = skypes_id
@@ -345,7 +352,7 @@ def solve_one_msg(struct):
         return blob
     #Now start:
     sender_email = retrieve_sender_email(msg_sender)
-    if judge_if_is_not_REply_or_others(msg_subject, msg_content)==True:
+    if judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_content)==True:
         vessels_name = retrieve_vessel(msg_content, vessels_patterns)
         if len(vessels_name)==0:return blob
         skypes_id = retrieve_skype(msg_content)
@@ -357,7 +364,7 @@ def solve_one_msg(struct):
             skypes_id = ['_BROKER_SKYPES_']
             pic_mailboxes = ['_BROKER_MAILBOXES_']
             pic_skype += ['_BROKER_TOKEN_']   #Now len=1 or 2 for shit broker's msg
-        blob = parse_blob(vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
+        blob = parse_blob(this_msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
     else:
         if DEBUG:print("This is Reply or with trashes! pass")
     return blob
@@ -413,6 +420,7 @@ if __name__ == "__main__":
     DEBUG = args.DEBUG
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
+    WRONG_SKYPE_PAIR = pd.read_csv(DATA_PATH_PREFIX+"/problem_skype.csv", index_col=0) 
     TEST = ''
     #From scratch? Checkpoint?
     MV_SENDER_BLOB = {}
@@ -482,7 +490,7 @@ if __name__ == "__main__":
     #Loop over msgs:
     blobs = []
     if MP:
-        pool = Pool(processes=cpu_count()*8)
+        pool = Pool(processes=cpu_count()*2)
         struct_list = []
         for i in range(len(msg_files)):
             struct_list.append([msg_files[i], FAILURE_LIST])
@@ -491,24 +499,45 @@ if __name__ == "__main__":
           if (rs.ready()): break
           remaining = rs._number_left
           print("Waiting for", remaining, "tasks to complete...")
-          time.sleep(0.5)
+          time.sleep(10)
         blobs = rs.get()   #HISTORY ORDER IS WITHIN!! VERY CONVINIENT
     else:
         for this_msg_file in tqdm.tqdm(msg_files):
             struct_this = [this_msg_file, FAILURE_LIST]
             blob = solve_one_msg(struct_this)
             blobs += [blob]
+    try:    #Try to give a log
+        print("Writing blobs to log....")
+        with open('output/log.log', 'w') as f:
+            f.write(str(blobs))
+    except Exception as e:
+        print("Error writing log, pass", e)
     #Loop over history:
     MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB = concat_blobs_through_history(blobs)
 
     #POSTPROCESSING:
+    #embed()
+    #for pic_skype and sender_skypes, switch right or wrong
+    for sender in SENDER_SKYPES_BLOB.keys():
+        for idx,this_skype_id in enumerate(SENDER_SKYPES_BLOB[sender]):
+            if this_skype_id in list(WRONG_SKYPE_PAIR.index):
+                SENDER_SKYPES_BLOB[sender][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
+    #for pic_skype and sender_skypes, switch right or wrong
+    for mv in MV_SKYPE_BLOB.keys():
+        for idx,this_skype_id in enumerate(MV_SKYPE_BLOB[mv]):
+            if this_skype_id in list(WRONG_SKYPE_PAIR.index):
+                MV_SKYPE_BLOB[mv][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
     #for pic_skype, -TOKEN
     for mv in MV_SKYPE_BLOB.keys():
         MV_SKYPE_BLOB[mv] = list(set(MV_SKYPE_BLOB[mv])-set(["_BROKER_TOKEN_"]))
-    #for Mailboxes, Blacklist and -skype:
+    #for Mailboxes, Blacklist and -skype and -bancosta:
     for sender in SENDER_MAILBOXES_BLOB.keys():
-        SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES))
-    print("Failures %s:"%len(FAILURE_LIST))
+        del_these = []
+        for this_mailbox in SENDER_MAILBOXES_BLOB[sender]:
+            if 'bancosta' in this_mailbox.lower():
+                del_these.append(this_mailbox)
+        SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES)-set(del_these))
+    print("Failures %s:"%len(FAILURE_LIST), set(FAILURE_LIST))
 
     #embed()
     #Generate outputs:
