@@ -157,11 +157,11 @@ if __name__ == "__main__":
 
     #1) Skyping:
     #Form chats content
-    try:
-        status_file_content = pd.read_csv(CARGO_STATUS_FILE_NAME, index_col=0)
-    except Exception as e:
-        print("Error reading statu file %s, this file is required before sending anything in lastest version. EXITING!!"%CARGO_STATUS_FILE_NAME)
-        sys.exit()
+    #try:
+    #    status_file_content = pd.read_csv(CARGO_STATUS_FILE_NAME, index_col=0)
+    #except Exception as e:
+    #    print("Error reading statu file %s, this file is required before sending anything in lastest version. EXITING!!"%CARGO_STATUS_FILE_NAME)
+    #    sys.exit()
     for row_num in row_MV.keys():
         this_MV = row_MV[row_num]
         row_MSG[row_num] = get_skype_content(SKYPE_FILE_NAME, this_MV)
