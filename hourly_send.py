@@ -169,10 +169,10 @@ if __name__ == "__main__":
     for row_num in row_PIC.keys():   #keys are 0123...
         for this_PIC in row_PIC[row_num]:
             if len(this_PIC)>0:
-                if status_file_content.STATUS.loc[this_PIC] == True:   #He's been replied
-                    print("Pass %s, his MV replied"%this_PIC)           #won't send him message again
-                else:
-                    struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
+                #if status_file_content.STATUS.loc[this_PIC] == True:   #He's been replied
+                #    print("Pass %s, his MV replied"%this_PIC)           #won't send him message again
+                #else:
+                struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
 
     #Skype send action:
     print("--------NOW SKYPE--------")
