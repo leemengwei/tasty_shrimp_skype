@@ -26,22 +26,21 @@ def ideal_pool_chats_by_blob(struct):
         sys.stdout.flush()
         tmp_len = 1
         history_chats = []
-        while tmp_len>0: #check historical messages
-            try:   #for whom is not your contacts, getMsg must fail, then skip~
-                tmp = blob.chat.getMsgs()
-            except:
-                tmp = []
-            history_chats += tmp
-            tmp_len = len(tmp)
+        #while tmp_len>0: #check historical messages
+        #    try:   #for whom is not your contacts, getMsg must fail, then skip~
+        #        tmp = blob.chat.getMsgs()
+        #    except:
+        #        tmp = []
+        #    history_chats += tmp
+        #    tmp_len = len(tmp)
         print("*SKYPE* Pool Sending to %s"%skype_id)
         for idx, message in enumerate(messages):
             if message in str(history_chats):
-                #print("*SKYPE* Pool Already sent,", idx, skype_id)
+                print("*SKYPE* Pool Already sent,", idx, skype_id)
                 pass
             else:
                 try:   #HEHE, force try to push all msgs to he who reports 403.
                     blob.chat.sendMsg(message)
-                    time.sleep(0.5)
                 except Exception as e:
                     if '403' in str(e):
                         print("Hehe, %s is not your contacts, while I forced to push him messages"%skype_id)
@@ -191,7 +190,7 @@ Skype: live:mengxuan_9
     #Skype send action:
     print("--------NOW SKYPE--------")
     n = 0
-    pool = Pool(processes=4)
+    pool = Pool(processes=1)
     failed_pic = []
     failed_rows = []
     failed_vessels = []

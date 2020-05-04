@@ -150,19 +150,16 @@ def ideal_pool_chat_by_blob(struct):
         sys.stdout.flush()
         tmp_len = 1
         history_chats = []
-        while tmp_len>0: #check historical messages
-            print("Getting msg", skype_id)
-            tmp = blob.chat.getMsgs()
-            history_chats += tmp
-            tmp_len = len(tmp)
+        #while tmp_len>0: #check historical messages
+        #    print("Getting msg", skype_id)
+        #    tmp = blob.chat.getMsgs()
+        #    history_chats += tmp
+        #    tmp_len = len(tmp)
         if message in str(history_chats):
             print("*SKYPE* Pool Already sent,", skype_id)
         else:
             print("*SKYPE* Pool Sending to %s"%skype_id)
             blob.chat.sendMsg(message)
-        #if DRY_RUN and skype_id=='live:a4333d00d55551e': #me_id
-        #    print(Failure_on_intension)
-        print("Okay", skype_id)
         return True
     except Exception as e:
         print("When sending %s,"%skype_id, e)
