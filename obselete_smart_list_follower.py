@@ -20,12 +20,12 @@ password = 'lmw196411'
 list_path = 'data/lists_listener/'
 
 
-@timeout_decorator.timeout(8)
+@timeout_decorator.timeout(10)
 def timeout_getblob(sk, to_whom):
     blob = sk.contacts[to_whom]
     return blob
 
-@timeout_decorator.timeout(3)
+@timeout_decorator.timeout(5)
 def timeout_sendMsg(blob, talking_what):
     blob.chat.sendMsg(talking_what)
 

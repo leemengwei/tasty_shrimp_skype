@@ -40,7 +40,7 @@ def ideal_pool_chats_by_blob(struct):
                 pass
             else:
                 try:   #HEHE, force try to push all msgs to he who reports 403.
-                    #blob.chat.sendMsg(message)
+                    blob.chat.sendMsg(message)
                     time.sleep(0.5)
                 except Exception as e:
                     if '403' in str(e):
@@ -81,7 +81,7 @@ def email_send_action(mail_sender, mail_receivers, subject_content, body_content
     stp.login(mail_sender,mail_license)
 
     #send:
-    #stp.sendmail(mail_sender, mail_receivers, mm.as_string())
+    stp.sendmail(mail_sender, mail_receivers, mm.as_string())
     stp.quit()
     return
 
@@ -216,7 +216,7 @@ if __name__ == "__main__":
             pass
         else:
             subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
-            body_content = get_skype_content(SKYPE_FILE_NAME, this_MV)
+            body_content = '\n'.join(get_skype_content(SKYPE_FILE_NAME, this_MV))
             print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
             email_send_action(mail_sender, mail_receivers, subject_content, body_content)
 
