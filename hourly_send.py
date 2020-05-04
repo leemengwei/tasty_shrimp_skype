@@ -223,7 +223,7 @@ Skype: live:mengxuan_9
     print("--------NOW EMAIL FOR FAILED--------")
     for row_num,i in enumerate(middle_bond.iterrows()):
         this_MV = row_MV[row_num]
-        if this_MV not in failed_vessels:continue
+        #if this_MV not in failed_vessels:continue
         mail_receivers = row_MAILBOXES[row_num]
         if len(mail_receivers) == 0:
             pass
