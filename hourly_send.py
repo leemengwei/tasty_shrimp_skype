@@ -181,7 +181,7 @@ if __name__ == "__main__":
     failed_pic = []
     failed_rows = []
     failed_vessels = []
-    while n<1 and len(struct_list)>0:
+    while n<6 and len(struct_list)>0:
         if n == 0:
             pass
         else:
