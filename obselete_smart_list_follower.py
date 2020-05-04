@@ -195,8 +195,12 @@ class SkypePing(SkypeEventLoop):
                     self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                     to_whom_old = to_whom
                 except Exception as e:
-                    print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
-                    pass
+                    if '403' in str(e):
+                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
+                        print("403 Sending %s, as success"%to_whom)
+                    else:
+                        print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
+                        pass
         print("Event type:", type(event), int(random.uniform(10000,20000)))
 
 
