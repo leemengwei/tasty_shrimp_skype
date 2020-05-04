@@ -57,9 +57,7 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
         while (n<10):
             n += 1
             sys.stdout.flush()
-            print("Relent getting blob %s, retry:%s"%(this_id, n))
             try:
-                print("auto time out")
                 blob = auto_timeout_getblob(sk, this_id)
                 return blob, sk
             except Exception as e:
@@ -67,8 +65,8 @@ def relentlessly_get_blob_by_id(sk, this_id, username, password, WAIT_TIME=45):
                 time.sleep(5)
                 last_e = e
                 sk.conn.verifyToken(sk.conn.tokens)
-        #print("Doing re-log (get blob) in Due to: %s"%last_e)
-        #sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
+        print("Doing re-log (get blob) in Due to: %s"%last_e)
+        sk = relentless_login_web_skype(username, password, sleep=WAIT_TIME)
 
 @flusher
 def relentlessly_get_commander_message(sk, commander_id, username, password):
@@ -419,9 +417,9 @@ if __name__ == "__main__":
             for message_this in chat_messages:
                 seconds_that_passed = (datetime.datetime.now() - message_this.time).days*24*3600+(datetime.datetime.now() - message_this.time).seconds - 8*3600   #Greenwich time
                 #print('seconds_that_passed', seconds_that_passed)
-                if (" TOKEN " in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
-                    print("Token caught")
-                    daily_report = message_this.content.replace(" TOKEN ",'')
+                if (" BOB_TOKEN " in message_this.content) and (message_this.userId in commander_ids) and (seconds_that_passed<WAIT_TIME):
+                    print("Bob Token caught")
+                    daily_report = message_this.content.replace(" BOB_TOKEN ",'')
                     #Send for every one:
                     #sk = messages_wrapper_simple(sk, all_target_people, external_content = daily_report)
                     sk = messages_wrapper_pool(sk, username, password, all_target_people, external_content = daily_report)

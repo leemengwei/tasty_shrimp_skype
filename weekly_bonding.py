@@ -204,7 +204,7 @@ def judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_subject_and_c
             '''.replace(' ','').split('\n')
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
-    if len(re.findall('r[e]?[ply]?:', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+    if len(re.findall('r[e]?[ply]?[:| ]', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         if 'ausca' in str(sender_email).lower():   #Ausca always with RE, so let it be.
             pass
         else:
