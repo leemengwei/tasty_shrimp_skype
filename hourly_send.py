@@ -110,6 +110,20 @@ if __name__ == "__main__":
     mail_host = "smtp.126.com"
     mail_sender = "limengxuan0708@126.com"
     mail_license = "lmx921221"  #this is not password!
+    signature_content = '''
+
+OR, you can refer to my other colleagues for your interests.
+
+------------------------------
+Marshal, Banchero Costa
+Handy/Supra/Ultra Desk
+
+Mobile: 0086 13120090157
+Email: limengxuan0708@126.com
+Skype: live:mengxuan_9
+
+(For any tonnage / cargo require, pls send to our Public email:handy@bancosta.it)
+'''
     #Skype configuration:
     WAIT_TIME = 25
     SKYPE_FILE_NAME = 'data/lists_listener/skype_content.txt'
@@ -217,6 +231,7 @@ if __name__ == "__main__":
         else:
             subject_content = 'MV %s/Suitable cargo - Bancsota desk'%this_MV
             body_content = '\n'.join(get_skype_content(SKYPE_FILE_NAME, this_MV))
+            body_content = body_content + signature_content
             print("*EMAIL* MV %s, Sending to %s"%(this_MV, mail_receivers))
             email_send_action(mail_sender, mail_receivers, subject_content, body_content)
 
