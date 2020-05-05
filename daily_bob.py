@@ -259,13 +259,13 @@ def parse_infos(sk, all_target_people, template_contents, username, password):
 
 def messages_wrapper_pool(sk, username, password, all_target_people, external_content):
     #sk = relentless_login_web_skype(username, password, sleep=0):
-    pool = Pool(processes=4)
     struct_list = []
     for i,j,k in zip(all_target_people[RESTART_AT:], ([external_content]*len(all_target_people))[RESTART_AT:], ([sk]*len(all_target_people))[RESTART_AT:]):
         struct_list.append([i,j,k])
     if PRESSURE_TEST:struct_list *= 25
     n = 0
     while n<5 and len(struct_list)>0:
+        pool = Pool(processes=8)
         status = pool.map(ideal_pool_chat_by_blob, struct_list)
         pool.close()
         pool.join()
