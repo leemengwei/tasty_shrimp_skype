@@ -134,7 +134,7 @@ class SkypePing(SkypeEventLoop):
         if isinstance(event, SkypeNewMessageEvent):
             whos_talking = event.msg.userId
             talking_what = event.msg.content
-            to_whom = event.msg.chatId.strip('8:')
+            to_whom = event.msg.chatId.replace("8:", '')
             when = event.msg.time
             if not isinstance(talking_what,str):return
             #Case 0 收到测试活动信号
@@ -201,7 +201,7 @@ class SkypePing(SkypeEventLoop):
                     else:
                         print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
                         pass
-        print("Event type:", type(event), int(random.uniform(10000,20000)))
+        print("Event type:", type(event), datetime.datetime.now()))
 
 
 if __name__ == "__main__":
