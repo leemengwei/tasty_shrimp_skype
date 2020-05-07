@@ -185,7 +185,7 @@ Skype: live:mengxuan_9
                 #if status_file_content.STATUS.loc[this_PIC] == True:   #He's been replied
                 #    print("Pass %s, his MV replied"%this_PIC)           #won't send him message again
                 #else:
-                struct_list.append([this_PIC, row_MSG[row_num], sk, row_num, row_MV[row_num]])
+                struct_list.append([this_PIC.lower(), row_MSG[row_num], sk, row_num, row_MV[row_num]])
 
     #Skype send action:
     print("--------NOW SKYPE--------")
