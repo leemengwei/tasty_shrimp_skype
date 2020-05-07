@@ -201,7 +201,7 @@ class SkypePing(SkypeEventLoop):
                     else:
                         print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
                         pass
-        print("Event type:", type(event), datetime.datetime.now()))
+        print("Event type:", type(event), datetime.datetime.now())
 
 
 if __name__ == "__main__":
