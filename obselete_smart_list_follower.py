@@ -149,7 +149,7 @@ class SkypePing(SkypeEventLoop):
                 talking_what = talking_what.replace(' .', '')
                 try:
                     interval = talking_what[-1]
-                    interval = float(interval)*random.uniform(59,62)
+                    interval = float(interval)*random.uniform(50,70)
                     interval = 0.1 if interval == 0 else interval
                     talking_what = talking_what[:-1]
                     #if talking_what
