@@ -12,6 +12,7 @@ from collections import Counter
 import numpy as np
 import argparse
 import shutil
+from time_counter import calc_time
 try:
     from multiprocessing.pool import Pool
     from multiprocessing import Manager
@@ -24,38 +25,38 @@ except Exception as e:
 
 SKYPE_TESTER = \
 '''
-SKYPE: alloisi@olorenzo
-Skype: Tassos Armyriotis
-Skype: live:Tassriotis
-skype : izden.unlu1
-skype : izden_unlu221
-skype id: cvnrpgh
-(SKYPE) live:wynn_mi11ttpe
-(SKYPEid) live:wynn_mi22ttpe
-SKYPEid) live:wynn_mitt33pe
-SKYPE) live:wynn_mittp444e
-skype live:sychioi
-skype:impsmb<abc>
-sta1rvo(skype id)
-star22vo(skype)
-Skype: + Filippo.Gabutto
-SKYPE (live) mathewmohanchat
-Msn/Skype:Fengncl@hotmail.com
-Skype/MSn:Fengncl@hotmail.com
-MSN/SKYPE: Feng123@hotmail.com
+SKYPE: alloisi@olorenzo1
+Skype: Tassos Armyriotis2
+Skype: live:Tassriotis3
+skype : izden.unlu4
+skype id: cvnrpgh5
+(SKYPE) live:wynn_mi11ttpe6
+(SKYPEid) live:wynn_mi22ttpe7
+SKYPEid) live:wynn_mitt33pe8
+SKYPE) live:wynn_mittp444e9
+skype live:sychioi10
+skype:impsmb<abc>11
+sta1rvo(skype id)12
+star22vo(skype)13
+Skype: + Filippo.Gabutto14
+SKYPE (live) mathewmohanchat15
+Msn/Skype:Fengncl@hotmail.com16
+Skype/MSn:Fengncl@hotmail.com17
+MSN/SKYPE: Feng123@hotmail.com18
 '''
 
 VESSELS_TESTER = \
 '''
-For MV Huayang
-MV CORALGEM
-MV CORAL
+CORAL GEM1
+For MV Huayang2
+MV CORALGEM3
+MV CORAL4
 '''
 
 README = \
 '''
 **************************
-*整体使用逻辑，非开发逻辑*
+*整体逻辑*
 1、获取任意cargo  X
 2、AXS输入筛选条件   X
 3、最近2-3天更新的船  X
@@ -80,7 +81,7 @@ README = \
 6、生成该blob；
 *************************************
 '''
-
+@calc_time
 def olefile_read(msg_file_path):
     msg = olefile.OleFileIO(msg_file_path)
     b = msg.exists('__substg1.0_1000001E')
@@ -89,6 +90,7 @@ def olefile_read(msg_file_path):
     msg.close()
     return msg_body.decode()   #TODO: 这里是否有回复？？ 此时回复是否有法判断？
 
+@calc_time
 def get_vessels_repository_and_patterns():
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
     vessels_repository_raw = []
@@ -131,7 +133,7 @@ def get_vessels_repository_and_patterns():
     vessels_patterns['unsafe'] = re.compile(r'%s'%all_unsafe_patterns, re.I)
     return vessels_repository, vessels_patterns
 
-
+@calc_time
 def parse_msg(msg_file_path):
     f = msg_file_path  # Replace with yours
     msg_sender = None
@@ -159,7 +161,7 @@ def parse_msg(msg_file_path):
         try:
             msg_body = olefile_read(f)
             msg_sender = 'Wont have sender' if msg_sender is None else msg_sender
-            msg_subject = 'Wont have subject'
+            msg_subject = 'Wont have subject' if msg_subject is None else msg_subject
         except:
             if DEBUG:print("Failed on extract_msg!",e)
             return msg_sender, False, False
@@ -172,6 +174,7 @@ def parse_msg(msg_file_path):
     if DEBUG:print("In file %s: "%f)
     return msg_sender, msg_subject, msg_content
 
+@calc_time
 def retrieve_sender_email(msg_sender):
     sender_email_raw = msg_sender
     if sender_email_raw is None:
@@ -186,6 +189,7 @@ def retrieve_sender_email(msg_sender):
     if DEBUG:print("Got sender:", sender_email)
     return sender_email
 
+@calc_time
 def judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_subject_and_content):
     other_trashes_in_subject_and_content = '''
             failure
@@ -204,7 +208,7 @@ def judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_subject_and_c
             '''.replace(' ','').split('\n')
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
-    if len(re.findall('r[e]?[ply]?[:| ]', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+    if len(re.findall('(^r|^re|^reply)[:| |-|,]', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
         if 'ausca' in str(sender_email).lower():   #Ausca always with RE, so let it be.
             pass
         else:
@@ -215,6 +219,7 @@ def judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_subject_and_c
     else:
         return True
 
+@calc_time
 def judge_if_direct_counterpart(sender_email, counterparts_repository):
     #i, the keyword of counterparts name.
     tmp = np.array([len(re.findall(i, sender_email, re.I)) for i in counterparts_repository])
@@ -229,6 +234,7 @@ def judge_if_direct_counterpart(sender_email, counterparts_repository):
         if DEBUG:print("Not counterparts")
     return direct_counterpart
 
+@calc_time
 def retrieve_vessel(msg_content, vessels_patterns):
     vessels_name = []
     vessels_pattern_safe = vessels_patterns['safe']
@@ -258,6 +264,7 @@ def retrieve_vessel(msg_content, vessels_patterns):
     if DEBUG:print("Got vessels name:", vessels_name)
     return vessels_name
 
+@calc_time
 def retrieve_skype(msg_content):
     #msg_content = SKYPE_TESTER
     skypes_id = []
@@ -304,6 +311,7 @@ def retrieve_skype(msg_content):
     if DEBUG:print("Got skype:", skypes_id)
     return skypes_id
 
+@calc_time
 def retrieve_pic_mailboxes(msg_content, sender_email):
     pattern = re.compile('([a-z0-9_\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
     pic_mailboxes  = pattern.findall(msg_content)
@@ -313,6 +321,7 @@ def retrieve_pic_mailboxes(msg_content, sender_email):
         pic_mailboxes[idx] = this_pic_mailbox.lower()
     return pic_mailboxes
 
+@calc_time
 def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
     pic_skype = []
     #print(vessels_name, skypes_id)
@@ -345,7 +354,6 @@ def solve_one_msg(struct):
     blob = {}
     global TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
-    if DEBUG:print(this_msg_file)
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
     if msg_subject == False:
         FAILURE_LIST.append(this_msg_file)
@@ -421,7 +429,6 @@ if __name__ == "__main__":
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
     WRONG_SKYPE_PAIR = pd.read_csv(DATA_PATH_PREFIX+"/problem_skype.csv", index_col=0) 
-    TEST = ''
     #From scratch? Checkpoint?
     MV_SENDER_BLOB = {}
     SENDER_MAILBOXES_BLOB = {}
@@ -437,8 +444,7 @@ if __name__ == "__main__":
 
     if FROM_SCRATCH:
         print("Run from scratch, moving msgs to work place...")
-        #os.system("mv %s/msgs/%s/consumed/*.msg %s/msgs/%s/"%(DATA_PATH_PREFIX, TEST, DATA_PATH_PREFIX, TEST))
-        consumed_files = glob.glob("%s/msgs/%s/consumed/*.msg"%(DATA_PATH_PREFIX, TEST))
+        consumed_files = glob.glob("%s/msgs/consumed/*.msg"%DATA_PATH_PREFIX)
         for this_consumed_file in consumed_files:
             shutil.move(this_consumed_file, this_consumed_file.replace("consumed",""))
         #checkpoint = pd.DataFrame()
@@ -480,7 +486,7 @@ if __name__ == "__main__":
                 pass
             MV_SKYPE_BLOB[i[1].MV] = tmp
     #Will work on files:
-    msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/%s/*.msg"%TEST)
+    msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
     msg_files.sort()
     #Repos:
     counterparts_repository = get_counterparts_repository()
@@ -490,7 +496,7 @@ if __name__ == "__main__":
     #Loop over msgs:
     blobs = []
     if MP:
-        pool = Pool(processes=cpu_count()*2)
+        pool = Pool(processes=int(cpu_count()/2))   #cpu_count()/2, 既省电也高效。
         struct_list = []
         for i in range(len(msg_files)):
             struct_list.append([msg_files[i], FAILURE_LIST])
