@@ -14,7 +14,7 @@ import argparse
 import shutil
 from time_counter import calc_time
 try:
-    from multiprocessing.pool import Pool
+    from mul3tiprocessing.pool import Pool
     from multiprocessing import Manager
     from multiprocessing import cpu_count
     MP = True
@@ -51,6 +51,14 @@ CORAL GEM1
 For MV Huayang2
 MV CORALGEM3
 MV CORAL4
+'''
+
+PERSON_TESTER = \
+'''
+M.V. IKAN PANDAN-(58DWT)-Open Vancouver 20-30 Jan- Elaine
+MV. IKAN PULAS- (63DWT)-Open Corpus Christi 21 Jan-Beatriz
+HEathiz:MV. GLORIOUS FUJI(250dwt)
+HEathiz2-MV. GLORIOUS FUJI(250dwt)
 '''
 
 README = \
@@ -355,6 +363,7 @@ def solve_one_msg(struct):
     global TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
+    embed()
     if msg_subject == False:
         FAILURE_LIST.append(this_msg_file)
         return blob
