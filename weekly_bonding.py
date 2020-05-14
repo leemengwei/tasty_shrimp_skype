@@ -106,7 +106,6 @@ def get_vessels_repository_and_patterns():
         table = workbook.sheet_by_name(sheet)
         vessels_repository_raw += table.col_values(1)[1:]
     vessels_repository = list(set(vessels_repository_raw))
-    vessels_repository.sort(key=vessels_repository_raw.index)
     safe_name = []
     unsafe_name = []
     for vessel in vessels_repository:
@@ -140,6 +139,18 @@ def get_vessels_repository_and_patterns():
     vessels_patterns['safe'] = re.compile(r'%s'%all_safe_patterns, re.I)
     vessels_patterns['unsafe'] = re.compile(r'%s'%all_unsafe_patterns, re.I)
     return vessels_repository, vessels_patterns
+
+@calc_time
+def get_person_names_repository_and_patterns():
+    person_names = list(pd.read_csv(DATA_PATH_PREFIX+"/person_names_repository.csv", header=None)[0].values)
+    order = person_names.index
+    person_names = list(set(person_names))
+    person_names.sort(key=order)
+    head = r'[\n\r\t]*('
+    tail = ')[^A-Za-z0-9]'
+    pattern = head+'|'.join(person_names)+tail
+    person_names_pattern = re.compile(r'%s'%pattern, re.I)
+    return person_names, person_names_pattern
 
 @calc_time
 def parse_msg(msg_file_path):
@@ -249,13 +260,19 @@ def retrieve_vessel(msg_content, vessels_patterns):
     vessels_pattern_unsafe = vessels_patterns['unsafe']
     vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
     vessels_name_raw_unsafe = vessels_pattern_unsafe.findall(msg_content)  #return [()]
+    vessel_positions_safe = [i.start() for i in vessels_pattern_safe.finditer(msg_content)]
+    vessel_positions_unsafe = [i.start() for i in vessels_pattern_unsafe.finditer(msg_content)]
     #If safe name occured then ignore unsafe name:
     redudant_name = []
+    redudant_idx = []
     for temp in vessels_name_raw_unsafe:
-        for short_name in temp:
-            if short_name in str(vessels_name_raw_safe) and short_name not in redudant_name:
+        for pos,short_name in zip(vessel_positions_unsafe, temp):
+            if short_name in str(vessels_name_raw_safe):
                 redudant_name.append(short_name)
+                redudant_idx.append(pos)
+    vessel_positions_unsafe = list(set(vessel_positions_unsafe)-set(redudant_idx)) 
     #Taken out names:
+    vessel_positions = vessel_positions_safe + vessel_positions_unsafe
     vessels_name_raw = vessels_name_raw_safe + vessels_name_raw_unsafe
     if len(vessels_name_raw) == 0:
         pass
@@ -266,11 +283,11 @@ def retrieve_vessel(msg_content, vessels_patterns):
                     vessels_name.append(j.strip(' '))
     for idx,this_vessel_name in enumerate(vessels_name):
         vessels_name[idx] = this_vessel_name.upper()
-    order = vessels_name.index
-    vessels_name = list(set(vessels_name))
-    vessels_name.sort(key=order)
+    #order = vessels_name.index
+    #vessels_name = list(set(vessels_name))
+    #vessels_name.sort(key=order)
     if DEBUG:print("Got vessels name:", vessels_name)
-    return vessels_name
+    return vessels_name, vessel_positions
 
 @calc_time
 def retrieve_skype(msg_content):
@@ -338,6 +355,20 @@ def retrieve_pic_skype(msg_content, vessels_name, skypes_id):
         pic_skype = skypes_id
     return pic_skype
 
+@calc_time
+def retrieve_mv_pic_pair(msg_content, vessels_name, vessel_positions, person_names, person_positions):
+    mv_pic_pair = {}
+    for i,mv in zip(vessel_positions, vessels_name): 
+        above_person = ''
+        below_person = ''
+        above = np.where(i>np.array(person_positions))[0]
+        below = np.where(i<np.array(person_positions))[0]
+        if len(above)!=0:above_person=person_names[above[-1]]
+        if len(below)!=0:below_person=person_names[below[0]]
+        if not mv.upper() in str(list(mv_pic_pair.keys())).upper():
+            mv_pic_pair[mv] = [above_person, below_person]
+    return
+
 def parse_blob(msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
     blob = {}
     blob['MSG_FILE'] = msg_file
@@ -348,6 +379,12 @@ def parse_blob(msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, p
     blob['PIC_SKYPE'] = pic_skype
     if DEBUG:print(blob)
     return blob
+
+def retrieve_person_names(msg_content, person_names_pattern):
+    person_names = []
+    person_names = person_names_pattern.findall(msg_content)
+    person_positions = [i.start() for i in person_names_pattern.finditer(msg_content)]
+    return person_names, person_positions
 
 def get_counterparts_repository():
     counterparts_repository = open(DATA_PATH_PREFIX+"/counterparts_repository.txt", 'r').readlines()
@@ -363,24 +400,25 @@ def solve_one_msg(struct):
     global TRASH_SENDER
     this_msg_file, FAILURE_LIST = struct[0], struct[1]
     msg_sender, msg_subject, msg_content = parse_msg(this_msg_file)
-    embed()
     if msg_subject == False:
         FAILURE_LIST.append(this_msg_file)
         return blob
     #Now start:
     sender_email = retrieve_sender_email(msg_sender)
     if judge_if_is_not_REply_or_others(sender_email, msg_subject, msg_content)==True:
-        vessels_name = retrieve_vessel(msg_content, vessels_patterns)
-        if len(vessels_name)==0:return blob
+        vessels_name, vessel_positions = retrieve_vessel(msg_content, vessels_patterns)
+        if len(vessels_name)==0:return blob    #If no vessel found, just return
+        person_names, person_positions = retrieve_person_names(msg_content, person_names_pattern)
         skypes_id = retrieve_skype(msg_content)
         pic_skype = retrieve_pic_skype(msg_content, vessels_name, skypes_id)
+        mv_pic_pair = retrieve_mv_pic_pair(msg_content, vessels_name, vessel_positions, person_names, person_positions)
         if judge_if_direct_counterpart(sender_email, counterparts_repository) is True:
             pic_mailboxes = retrieve_pic_mailboxes(msg_content, sender_email)
         else:   #When not direct counterpart
             sender_email = '_BROKER_SENDER_'
             skypes_id = ['_BROKER_SKYPES_']
             pic_mailboxes = ['_BROKER_MAILBOXES_']
-            pic_skype += ['_BROKER_TOKEN_']   #Now len=1 or 2 for shit broker's msg
+            pic_skype += ['_BROKER_TOKEN_']   #len=1 for direct, or len=2 for shit broker's msg
         blob = parse_blob(this_msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
     else:
         if DEBUG:print("This is Reply or with trashes! pass")
@@ -500,7 +538,7 @@ if __name__ == "__main__":
     #Repos:
     counterparts_repository = get_counterparts_repository()
     vessels_repository, vessels_patterns = get_vessels_repository_and_patterns()
-    #embed()
+    person_names_repository, person_names_pattern = get_person_names_repository_and_patterns()
 
     #Loop over msgs:
     blobs = []
