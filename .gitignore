@@ -137,3 +137,4 @@ infos/*.*
 outputs/
 *.msg
 *.com
+data/data_bonding_net/company_info.pkl
