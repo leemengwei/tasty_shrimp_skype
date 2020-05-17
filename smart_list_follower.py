@@ -146,16 +146,28 @@ class SkypePing(SkypeEventLoop):
                     print("Time out testing...", e)
             #Case 1 收到重复信号
             if whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' .' in talking_what:
-                talking_what = talking_what.replace(' .', '')
-                try:
-                    interval = talking_what[-1]
-                    interval = float(interval)*random.uniform(50,70)
-                    interval = 0.1 if interval == 0 else interval
-                    talking_what = talking_what[:-1]
-                    #if talking_what
-                except:
-                    print("No time interval, pass...")
-                    return
+                if ' ..' in talking_what:
+                    talking_what = talking_what.replace(' ..', '')
+                    try:
+                        interval = talking_what[-1]
+                        interval = float(interval)*random.uniform(50,70)*10
+                        interval = 0.1 if interval == 0 else interval
+                        talking_what = talking_what[:-1]
+                        #if talking_what
+                    except:
+                        print("No time interval, pass...")
+                        return
+                else:
+                    talking_what = talking_what.replace(' ..', '')
+                    try:
+                        interval = talking_what[-1]
+                        interval = float(interval)*random.uniform(50,70)
+                        interval = 0.1 if interval == 0 else interval
+                        talking_what = talking_what[:-1]
+                        #if talking_what
+                    except:
+                        print("No time interval, pass...")
+                        return
                 print("Repeating Signal at %s, %s says %s, interval: %s min."%(to_whom, whos_talking, talking_what, interval))
                 this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval]}, columns=self.column_order_list)
                 #任务更新操作：任务从始至终叠加
