@@ -12,6 +12,7 @@ import timeout_decorator
 from multiprocessing.pool import Pool
 import collections
 import random
+import re
 
 username = '18601156335' 
 #username = 'mengxuan@bancosta.com' 
@@ -145,29 +146,18 @@ class SkypePing(SkypeEventLoop):
                 except Exception as e:
                     print("Time out testing...", e)
             #Case 1 收到重复信号
-            if whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' .' in talking_what:
-                if ' ..' in talking_what:
-                    talking_what = talking_what.replace(' ..', '')
-                    try:
-                        interval = talking_what[-1]
-                        interval = float(interval)*random.uniform(50,70)*10
-                        interval = 0.1 if interval == 0 else interval
-                        talking_what = talking_what[:-1]
-                        #if talking_what
-                    except:
-                        print("No time interval, pass...")
-                        return
-                else:
-                    talking_what = talking_what.replace(' ..', '')
-                    try:
-                        interval = talking_what[-1]
-                        interval = float(interval)*random.uniform(50,70)
-                        interval = 0.1 if interval == 0 else interval
-                        talking_what = talking_what[:-1]
-                        #if talking_what
-                    except:
-                        print("No time interval, pass...")
-                        return
+            if whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' .' in talking_what:  #' .' or ' ..'
+                try:
+                    interval = talking_what[-1]
+                    scaler = 10 if ' ..' in talking_what else 1
+                    interval = float(interval)*random.uniform(50,70)*scaler
+                    interval = 0.1 if interval == 0 else interval
+                    talking_what = talking_what.replace(' ..', '') if ' ..' in talking_what else talking_what.replace(' .', '')
+                    talking_what = talking_what[:-1]
+                    #if talking_what
+                except:
+                    print("No time interval, pass...")
+                    return
                 print("Repeating Signal at %s, %s says %s, interval: %s min."%(to_whom, whos_talking, talking_what, interval))
                 this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval]}, columns=self.column_order_list)
                 #任务更新操作：任务从始至终叠加
@@ -175,14 +165,31 @@ class SkypePing(SkypeEventLoop):
                 self.tasks = self.tasks.sort_index()
                 print(self.tasks)
             #Case 2 收到停止信号
-            elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' ~' in talking_what) or (whos_talking in self.tasks.index):
+            elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' ~' in talking_what):  
                 print("Canceling Signal at %s"%to_whom)
                 if to_whom in self.tasks.index:
                     self.tasks = self.tasks.drop(to_whom)
                 else:
                     print("No task for %s"%to_whom)
                 print(self.tasks)
-            #Case 3 没收到有效信号
+            #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
+            elif whos_talking in self.tasks.index:
+                self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
+                self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=max(24*60, self.tasks.loc[whos_talking, 'interval'].max()))
+                self.tasks.loc[whos_talking, 'interval'] = max(24*60, self.tasks.loc[whos_talking, 'interval'].max())
+                print(self.tasks)
+            #Case 4 收到消单信号
+            elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and len(re.findall("\[CANCEL:(.*?)\]", talking_what))):
+                cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)[0]
+                idx_keep = []
+                for idx,i in enumerate(self.tasks.iterrows()):
+                    if cancel_what not in i[1].talking_what:
+                        idx_keep.append(idx)
+                    else:
+                        print("There is at least one job Canceled at:", i[0])
+                self.tasks = self.tasks.iloc[idx_keep]
+                print(self.tasks)
+            #Case 5 没收到有效信号
             else:
                 pass
             #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, username, password)
@@ -200,7 +207,7 @@ class SkypePing(SkypeEventLoop):
                 if not isinstance(talking_what, str) or len(talking_what)==0:continue
                 print("Now following....", to_whom, talking_what)
                 try:
-                    if to_whom!=to_whom_old:
+                    if to_whom!=to_whom_old:   #如果两个连续的是同一个人，那么不用重复getblob了
                         blob = timeout_getblob(self.skype, to_whom)
                     timeout_sendMsg(blob, talking_what)
                     #把follow完的自动更新一下任务状态
