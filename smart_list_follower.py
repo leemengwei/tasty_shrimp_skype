@@ -20,23 +20,26 @@ password = 'lmw196411'
 #password = 'Bcchina2020' 
 list_path = 'data/lists_listener/'
 
+MAX_SEND = 20
 
-@timeout_decorator.timeout(10)
+@timeout_decorator.timeout(20)
 def timeout_getblob(sk, to_whom):
     blob = sk.contacts[to_whom]
     return blob
 
-@timeout_decorator.timeout(5)
+@timeout_decorator.timeout(10)
 def timeout_sendMsg(blob, talking_what):
     blob.chat.sendMsg(talking_what)
 
 class SkypePing(SkypeEventLoop):
     def __init__(self):
         print("Now preparing listener...")
-        self.column_order_list = ['talking_what', 'when', 'interval']
+        self.column_order_list = ['talking_what', 'when', 'interval', 'counter']
         self.tasks = pd.DataFrame(columns = self.column_order_list)
         self.when_column_index = np.where('when' == np.array(list(self.tasks)))[0][0]
+        self.interval_column_index = np.where('interval' == np.array(list(self.tasks)))[0][0]
         self.talking_what_column_index = np.where('talking_what' == np.array(list(self.tasks)))[0][0]
+        self.counter_column_index = np.where('counter' == np.array(list(self.tasks)))[0][0]
         self.reply_status = collections.OrderedDict()
         self.old_num = 0
         self.lists_blob_old = collections.OrderedDict()
@@ -159,11 +162,10 @@ class SkypePing(SkypeEventLoop):
                     print("No time interval, pass...")
                     return
                 print("Repeating Signal at %s, %s says %s, interval: %s min."%(to_whom, whos_talking, talking_what, interval))
-                this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval]}, columns=self.column_order_list)
+                this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval], "counter":1}, columns=self.column_order_list)
                 #任务更新操作：任务从始至终叠加
                 self.tasks = self.tasks.append(this_task)
                 self.tasks = self.tasks.sort_index()
-                print(self.tasks)
             #Case 2 收到停止信号
             elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' ~' in talking_what):  
                 print("Canceling Signal at %s"%to_whom)
@@ -171,13 +173,12 @@ class SkypePing(SkypeEventLoop):
                     self.tasks = self.tasks.drop(to_whom)
                 else:
                     print("No task for %s"%to_whom)
-                print(self.tasks)
             #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
             elif whos_talking in self.tasks.index:
                 self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
                 self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=max(24*60, self.tasks.loc[whos_talking, 'interval'].max()))
                 self.tasks.loc[whos_talking, 'interval'] = max(24*60, self.tasks.loc[whos_talking, 'interval'].max())
-                print(self.tasks)
+                self.tasks.loc[whos_talking, 'talking_what'] = "Just if vessel still open, may consider again \n"+self.tasks.loc[whos_talking, 'talking_what']
             #Case 4 收到消单信号
             elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and len(re.findall("\[CANCEL:(.*?)\]", talking_what))):
                 cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)[0]
@@ -188,18 +189,18 @@ class SkypePing(SkypeEventLoop):
                     else:
                         print("There is at least one job Canceled at:", i[0])
                 self.tasks = self.tasks.iloc[idx_keep]
-                print(self.tasks)
             #Case 5 没收到有效信号
             else:
                 pass
             #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, username, password)
             self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
+            print(self.tasks)
         else:    #其他事件
-
             pass
 
         #2）再follow：对于超时未回复的，自动Follow up
         to_whom_old = None
+        enough_row = []
         for row_idx,row in enumerate(self.tasks.iterrows()):
             to_whom = row[0]
             talking_what = row[1].talking_what
@@ -209,10 +210,27 @@ class SkypePing(SkypeEventLoop):
                 try:
                     if to_whom!=to_whom_old:   #如果两个连续的是同一个人，那么不用重复getblob了
                         blob = timeout_getblob(self.skype, to_whom)
-                    timeout_sendMsg(blob, talking_what)
-                    #把follow完的自动更新一下任务状态
-                    self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
+                        history_chats = [blob.chat.getMsgs() for i in range(5)]
+                    #如果历史中他已经在这条消息下边出现过回复了，则pass,且修订下次为一天后,interval也要改
+                    if str(history_chats).find("userId='%s'"%to_whom) < str(history_chats).find("%s"%talking_what):
+                        embed()
+                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
+                        self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
+                        self.tasks.iloc[row_idx, self.talking_what_column_index] = "Just if vessel still open, may consider again \n"+self.tasks.iloc[row_idx, self.talking_what_column_index]
+                        print("Skip as %s has been replied to msg:%s, will send after 24h"%(to_whom,talking_what))
+                        pass
+                    else:  #否则照常发
+                        timeout_sendMsg(blob, talking_what)
+                        #把follow完的自动更新一下任务状态
+                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
+                        self.tasks.iloc[row_idx, self.counter_column_index] += 1
+                        if self.tasks.iloc[row_idx, self.counter_column_index] < MAX_SEND:
+                            enough_row.append(row_idx)
+                        else:
+                            print("Enough for %s, will sooner let him go"%to_whok)
                     to_whom_old = to_whom
+                    #发的够多的就可以不要了，少的留着
+                    self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_row))]
                 except Exception as e:
                     if '403' in str(e):
                         self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
@@ -220,6 +238,7 @@ class SkypePing(SkypeEventLoop):
                     else:
                         print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
                         pass
+
         print("Event type:", type(event), datetime.datetime.now())
 
 
