@@ -70,9 +70,10 @@ class SkypePing(SkypeEventLoop):
                 talking_what = row[1].talking_what
                 he_talked_at = str(history_chats_dict[check_who]).find("userId='%s'"%check_who)
                 I_talked_at = str(history_chats_dict[check_who]).find("%s"%talking_what[:-3])
-                if he_talked_at<0:
+                if he_talked_at<0 or he_talked_at>=I_talked_at:
+                    print("No fucking reply, will just sent him latter!")
                     continue    #fuck him, will just sent him latter!
-                elif he_talked_at<I_talked_at:     #he saw my message!
+                if he_talked_at<I_talked_at:     #he saw my message!
                     if not self.tasks.iloc[row_idx, self.interval_column_index] == 24*60: #间隔还没改成24h
                         self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
                         self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
@@ -249,6 +250,7 @@ class SkypePing(SkypeEventLoop):
                 to_whom_old = to_whom
                 #发的够多的就可以不要了，少的留着
                 self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_is_enough))]
+                self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
             else:       #还不到时间
                 pass
 
