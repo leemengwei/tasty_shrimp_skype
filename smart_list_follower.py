@@ -14,13 +14,15 @@ import collections
 import random
 import re
 
-username = '18601156335' 
-#username = 'mengxuan@bancosta.com' 
-password = 'lmw196411' 
-#password = 'Bcchina2020' 
+USERNAME = '18601156335' 
+#USERNAME = 'mengxuan@bancosta.com' 
+PASSWORD = 'lmw196411' 
+#PASSWORD = 'Bcchina2020' 
 list_path = 'data/lists_listener/'
 
-MAX_SEND = 20
+COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a4333d00d55551e'}
+MAX_SEND = 15 
+ADD_ONS = {'try_more': 'If vessel still open? May try further:\n'}
 
 @timeout_decorator.timeout(20)
 def timeout_getblob(sk, to_whom):
@@ -34,9 +36,9 @@ def timeout_sendMsg(blob, talking_what):
 class SkypePing(SkypeEventLoop):
     def __init__(self):
         #Log in here:
-        print("Now logging in...Are You Sure????", username, password)
+        print("Now logging in...Are You Sure????", USERNAME, PASSWORD)
         input()
-        super(SkypePing, self).__init__(username, password)
+        super(SkypePing, self).__init__(USERNAME, PASSWORD)
         print("Now preparing listener...")
         self.column_order_list = ['talking_what', 'when', 'interval', 'counter', 'dirty']
         self.tasks = pd.DataFrame(columns = self.column_order_list)
@@ -58,7 +60,7 @@ class SkypePing(SkypeEventLoop):
             #所有无忧启动,check历史聊天
             history_chats_dict = {}
             for check_who in set(self.tasks.index):
-                print("Checking %s"%check_who)
+                print("Reading history chats %s"%check_who)
                 history_chats = []
                 for i in range(10):
                     blob = timeout_getblob(self.skype, check_who)
@@ -71,14 +73,12 @@ class SkypePing(SkypeEventLoop):
                 he_talked_at = str(history_chats_dict[check_who]).find("userId='%s'"%check_who)
                 I_talked_at = str(history_chats_dict[check_who]).find("%s"%talking_what[:-3])
                 if he_talked_at<0 or he_talked_at>=I_talked_at:
-                    print("No fucking reply, will just sent him latter!")
+                    print("No fucking reply, will just sent %s latter!"%check_who)
                     continue    #fuck him, will just sent him latter!
                 if he_talked_at<I_talked_at:     #he saw my message!
                     if not self.tasks.iloc[row_idx, self.interval_column_index] == 24*60: #间隔还没改成24h
                         self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
                         self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
-                        add_ons = "If vessel still open, may check gain\n"
-                        self.tasks.iloc[row_idx, self.talking_what_column_index] = add_ons+self.tasks.iloc[row_idx, self.talking_what_column_index]
                     else:   #间隔都24h了，说明他被check过了
                         pass
                     print("%s has been replied to msg:%s..., will send after 24h"%(check_who,talking_what[:20]))
@@ -164,14 +164,14 @@ class SkypePing(SkypeEventLoop):
         when = event.msg.time
         if not isinstance(talking_what,str):return
         #Case 0 收到测试活动信号
-        if whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and 'Alive?'==talking_what:
+        if whos_talking in COMMANDERS.values() and 'Alive?'==talking_what:
             try:
                 blob = timeout_getblob(self.skype, to_whom)
                 timeout_sendMsg(blob, 'Alive-Yes')
             except Exception as e:
                 print("Time out testing...", e)
         #Case 1 收到重复信号
-        if whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' .' in talking_what:  #' .' or ' ..'
+        if whos_talking in COMMANDERS.values() and ' .' in talking_what:  #' .' or ' ..'
             try:
                 interval = talking_what[-1]
                 scaler = 10 if ' ..' in talking_what else 1
@@ -188,31 +188,34 @@ class SkypePing(SkypeEventLoop):
             self.tasks = self.tasks.append(this_task)
             self.tasks = self.tasks.sort_index()
         #Case 2 收到停止信号
-        elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and ' ~' in talking_what):  
-            print("Canceling Signal at %s"%to_whom)
+        elif (whos_talking in COMMANDERS.values() and ' ~' in talking_what):  
             if to_whom in self.tasks.index:
                 self.tasks = self.tasks.drop(to_whom)
-            else:
-                print("No task for %s"%to_whom)
+                try:
+                    timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)
+                except Exception as e:
+                    print(e)
         #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
         elif whos_talking in self.tasks.index:
             self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
             self.tasks.loc[whos_talking, 'interval'] = 24*60
-            self.tasks.loc[whos_talking, 'talking_what'] = "Just if vessel still open, may consider again \n"+self.tasks.loc[whos_talking, 'talking_what']
         #Case 4 收到消单信号
-        elif (whos_talking in ['live:mengxuan_9', 'live:a4333d00d55551e'] and len(re.findall("\[CANCEL:(.*?)\]", talking_what))):
+        elif (whos_talking in COMMANDERS.values() and len(re.findall("\[CANCEL:(.*?)\]", talking_what))):     
             cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)[0]
             idx_keep = []
             for idx,i in enumerate(self.tasks.iterrows()):
                 if cancel_what not in i[1].talking_what:
                     idx_keep.append(idx)
                 else:
-                    print("There is at least one job Canceled at:", i[0])
+                    try:
+                        timeout_sendMsg(REPORT_BLOB, "A job Canceled at: "+i[0])
+                    except Exception as e:
+                        print(e)
             self.tasks = self.tasks.iloc[idx_keep]
         #Case 5 没收到有效信号
         else:
             pass
-        #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, username, password)
+        #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, USERNAME, PASSWORD)
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
         return
 
@@ -243,16 +246,17 @@ class SkypePing(SkypeEventLoop):
                 #把follow完的自动更新一下任务状态
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                 self.tasks.iloc[row_idx, self.counter_column_index] += 1
-                if self.tasks.iloc[row_idx, self.counter_column_index] < MAX_SEND:
+                if self.tasks.iloc[row_idx, self.counter_column_index] > MAX_SEND:
                     enough_is_enough.append(row_idx)
+                    print("Enough for %s, will sooner let him go"%to_whom)
                 else:
-                    print("Enough for %s, will sooner let him go"%to_whok)
+                    pass
                 to_whom_old = to_whom
-                #发的够多的就可以不要了，少的留着
-                self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_is_enough))]
-                self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
             else:       #还不到时间
                 pass
+        #发的够多的就可以不要了，少的留着
+        self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_is_enough))]
+        self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
 
     def onEvent(self, event):
         #挂单项目：有消息才会激活事件，根据目前挂的单更新对应的状态单
@@ -273,6 +277,8 @@ class SkypePing(SkypeEventLoop):
 if __name__ == "__main__":
     print("Start")
     sk = SkypePing()
+    report_to = COMMANDERS[list(set(COMMANDERS.keys()) - set([USERNAME]))[0]]
+    REPORT_BLOB = timeout_getblob(sk.skype, report_to)
 
     sk.loop()
 
