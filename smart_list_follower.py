@@ -89,12 +89,17 @@ class SkypePing(SkypeEventLoop):
                 if self.tasks.iloc[row_idx, self.interval_column_index] == 24*60:continue#间隔都24h了，说明他被check过了
                 check_who = row[0]
                 talking_what = row[1].talking_what
-                he_talked_at = str(history_chats_dict[check_who]).find("userId='%s'"%check_who)
-                I_talked_at = str(history_chats_dict[check_who]).find("%s"%talking_what[:-3])
-                if he_talked_at<0 or he_talked_at>=I_talked_at:
+                he_talked_at = [999999]
+                I_talked_at = [99990]
+                for idx,tmp in enumerate(history_chats_dict[check_who]):
+                    if tmp.userId == check_who:
+                        he_talked_at.append(idx)
+                    if talking_what in tmp.content:
+                        I_talked_at.append(idx)
+                if min(he_talked_at) > min(I_talked_at):
                     my_print("No fucking reply, will just sent %s latter!"%check_who)
                     continue    #fuck him, will just sent him latter!
-                if he_talked_at<I_talked_at:     #he saw my message!
+                if min(he_talked_at) < min(I_talked_at):     #he saw my message!
                     self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
                     self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
                     my_print("%s has been replied to msg:%s..., will send after 24h"%(check_who,talking_what[:20]))
