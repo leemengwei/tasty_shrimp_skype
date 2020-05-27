@@ -92,6 +92,7 @@ class SkypePing(SkypeEventLoop):
                 he_talked_at = [999999]
                 I_talked_at = [99990]
                 for idx,tmp in enumerate(history_chats_dict[check_who]):
+                    if isinstance(tmp, str):continue   #如果是str类型，则是之前读取history失败随便填充的
                     if tmp.userId == check_who:
                         he_talked_at.append(idx)
                     if talking_what in tmp.content:
