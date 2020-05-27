@@ -24,6 +24,11 @@ COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a43
 MAX_SEND = 15 
 ADD_ONS = {'try_more': 'If vessel still open? May try further:\n'}
 
+def my_print(what, a='',b='',c='',d='',e='',f='',g=''):
+    print(what,a,b,c,d,e,f,g)
+    sys.stdout.flush()
+    return
+
 @timeout_decorator.timeout(30)
 def timeout_getblob(sk, to_whom):
     blob = sk.contacts[to_whom]
@@ -36,10 +41,10 @@ def timeout_sendMsg(blob, talking_what):
 class SkypePing(SkypeEventLoop):
     def __init__(self):
         #Log in here:
-        print("Now logging in...Are You Sure????", USERNAME, PASSWORD)
+        my_print("Now logging in...Are You Sure????", USERNAME, PASSWORD)
         #input()
         super(SkypePing, self).__init__(USERNAME, PASSWORD)
-        print("Now preparing listener...")
+        my_print("Now preparing listener...")
         self.column_order_list = ['talking_what', 'when', 'interval', 'counter', 'dirty']
         self.tasks = pd.DataFrame(columns = self.column_order_list)
         self.when_column_index = np.where('when' == np.array(list(self.tasks)))[0][0]
@@ -56,14 +61,13 @@ class SkypePing(SkypeEventLoop):
             for row_idx,row in enumerate(self.tasks.iterrows()):
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.strptime(row[1].when.split('.')[0], "%Y-%m-%d %H:%M:%S")
                 self.tasks.iloc[row_idx, self.talking_what_column_index] = str(row[1].talking_what)
-            print("CHECKPOINT LOADED...CHECKING HISTORY.... ")
+            my_print("CHECKPOINT LOADED...CHECKING HISTORY.... ")
             #所有无忧启动,check历史聊天,形成dict,保存下来
             history_chats_dict = {}
             check_who_old = ''
             for row in self.tasks.iterrows():
                 check_who = row[0]
-                print("Reading history chats %s"%check_who)
-                sys.stdout.flush()
+                my_print("Reading history chats %s"%check_who)
                 if row[1].interval == 24*60 or check_who == check_who_old:continue  #连续的人 就不check了
                 history_chats = []
                 blob = "__"
@@ -85,15 +89,15 @@ class SkypePing(SkypeEventLoop):
                 he_talked_at = str(history_chats_dict[check_who]).find("userId='%s'"%check_who)
                 I_talked_at = str(history_chats_dict[check_who]).find("%s"%talking_what[:-3])
                 if he_talked_at<0 or he_talked_at>=I_talked_at:
-                    print("No fucking reply, will just sent %s latter!"%check_who)
+                    my_print("No fucking reply, will just sent %s latter!"%check_who)
                     continue    #fuck him, will just sent him latter!
                 if he_talked_at<I_talked_at:     #he saw my message!
                     self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
                     self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
-                    print("%s has been replied to msg:%s..., will send after 24h"%(check_who,talking_what[:20]))
+                    my_print("%s has been replied to msg:%s..., will send after 24h"%(check_who,talking_what[:20]))
         self.tasks = self.tasks.sort_index()
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
-        print("Now listenning...")
+        my_print("Now listenning...")
 
     #def check_demand_lists_and_update_their_status_lists(self, event):
     #    #看看demand lists：
@@ -101,7 +105,7 @@ class SkypePing(SkypeEventLoop):
     #    self.demand_lists.sort()
     #    num_of_demand_lists = len(self.demand_lists)
     #    if num_of_demand_lists != self.old_num:
-    #        print("%s demand lists for now..."%num_of_demand_lists, self.demand_lists)
+    #        my_print("%s demand lists for now..."%num_of_demand_lists, self.demand_lists)
     #        self.old_num = num_of_demand_lists
     #    
     #    #生成/更新对应的status lists:
@@ -109,7 +113,7 @@ class SkypePing(SkypeEventLoop):
     #    if not isinstance(event, SkypeNewMessageEvent):
     #        return
     #    #如果是msg事件，更新一下所有lists的所有PIC的状态：
-    #    print('Chat event...')
+    #    my_print('Chat event...')
     #    for this_demand_list in self.demand_lists:
     #        MVs = pd.read_csv(this_demand_list).MV
     #        PICs = pd.read_csv(this_demand_list).PIC_SKYPE
@@ -137,32 +141,32 @@ class SkypePing(SkypeEventLoop):
     #            common_index = list(set(now_status.index) & set(old_status.index)) #取出common的人，别的不要了
     #            now_status.loc[(common_index,'STATUS')] = old_status.loc[(common_index,'STATUS')]|now_status.loc[(common_index,'STATUS')]
     #        now_status.to_csv(this_status_list)   #存新
-    #        print(this_status_list.split('/')[-1], '\n', now_status, '\n')
+    #        my_print(this_status_list.split('/')[-1], '\n', now_status, '\n')
 
     #def update_reply_status(self, event):
     #    someone = None
     #    if isinstance(event, SkypeNewMessageEvent):
     #        someone = event.msg.userId
-    #        print(someone, 'says:', event.msg.content)
+    #        my_print(someone, 'says:', event.msg.content)
     #    if someone in self.PICs:
     #        self.he_who_replied += [someone]
-    #        print("%s replied! Noted"%someone)
+    #        my_print("%s replied! Noted"%someone)
 
     #def cook_time(self):
     #    now = datetime.datetime.now()
     #    if now.second!=9:
-    #        #print("Launcher ready, but not now, waiting...")
+    #        #my_print("Launcher ready, but not now, waiting...")
     #        return False
     #    else:
-    #        print("Launching Now! Target:", self.PICs)
+    #        my_print("Launching Now! Target:", self.PICs)
     #        return True
     #
     #def launch_or_wait(self, event):
     #    if not isinstance(event, SkypeNewMessageEvent):
     #        return
-    #    print("Bombbing!")
+    #    my_print("Bombbing!")
     #    logname = '-'.join(str(datetime.datetime.now()).replace(':','').split(' ')).split('.')[0]
-    #    print("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
+    #    my_print("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
     #    os.system("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
     #    return
 
@@ -178,7 +182,7 @@ class SkypePing(SkypeEventLoop):
                 blob = timeout_getblob(self.skype, to_whom)
                 timeout_sendMsg(blob, 'Alive-Yes')
             except Exception as e:
-                print("Time out testing...", e)
+                my_print("Time out testing...", e)
         #Case 1 收到重复信号
         if whos_talking in COMMANDERS.values() and ' .' in talking_what:  #' .' or ' ..'
             try:
@@ -190,7 +194,7 @@ class SkypePing(SkypeEventLoop):
                 talking_what = talking_what[:-1]
                 #if talking_what
             except:
-                print("No time interval, pass...")
+                my_print("No time interval, pass...")
                 return
             this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval], "counter":1, "dirty":False}, columns=self.column_order_list)
             #任务更新操作：任务从始至终叠加
@@ -203,7 +207,7 @@ class SkypePing(SkypeEventLoop):
                 try:
                     timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)
                 except Exception as e:
-                    print(e)
+                    my_print(e)
         #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
         elif whos_talking in self.tasks.index:
             self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
@@ -219,7 +223,7 @@ class SkypePing(SkypeEventLoop):
                     try:
                         timeout_sendMsg(REPORT_BLOB, "A job Canceled at: "+i[0])
                     except Exception as e:
-                        print(e)
+                        my_print(e)
             self.tasks = self.tasks.iloc[idx_keep]
         #Case 5 没收到有效信号
         else:
@@ -237,27 +241,27 @@ class SkypePing(SkypeEventLoop):
             talking_what = row[1].talking_what
             if row[1].when<datetime.datetime.now():
                 if not isinstance(talking_what, str) or len(talking_what)==0:continue
-                print("Now following....", to_whom, talking_what)
+                my_print("Now following....", to_whom, talking_what)
                 if to_whom!=to_whom_old:   #如果两个连续的是同一个人，那么不用重复getblob了
                     try:
                         blob = timeout_getblob(self.skype, to_whom)
                     except Exception as e:
-                        print("Error getting blob %s, will retry soon..."%to_whom)
+                        my_print("Error getting blob %s, will retry soon..."%to_whom)
                 try:
                     timeout_sendMsg(blob, talking_what)
                 except Exception as e:
                     if '403' in str(e):
                         self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
-                        print("403 Sending %s, as success"%to_whom)
+                        my_print("403 Sending %s, as success"%to_whom)
                     else:
-                        print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
+                        my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
                         pass
                 #把follow完的自动更新一下任务状态
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                 self.tasks.iloc[row_idx, self.counter_column_index] += 1
                 if self.tasks.iloc[row_idx, self.counter_column_index] > MAX_SEND:
                     enough_is_enough.append(row_idx)
-                    print("Enough for %s, will sooner let him go"%to_whom)
+                    my_print("Enough for %s, will sooner let him go"%to_whom)
                 else:
                     pass
                 to_whom_old = to_whom
@@ -276,15 +280,15 @@ class SkypePing(SkypeEventLoop):
         #1）如何listen：
         if isinstance(event, SkypeNewMessageEvent):
             self.listen_method(event)
-            print(self.tasks)
+            my_print(self.tasks)
 
         #2）如何follow：
         self.follow_method()
-        print("Event type:", type(event), datetime.datetime.now())
+        my_print("Event type:", type(event), datetime.datetime.now())
 
 
 if __name__ == "__main__":
-    print("Start")
+    my_print("Start")
     sk = SkypePing()
     report_to = COMMANDERS[list(set(COMMANDERS.keys()) - set([USERNAME]))[0]]
     REPORT_BLOB = timeout_getblob(sk.skype, report_to)
