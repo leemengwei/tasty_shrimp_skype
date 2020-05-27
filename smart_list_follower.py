@@ -69,7 +69,6 @@ class SkypePing(SkypeEventLoop):
                 check_who = row[0]
                 my_print("Reading history chats %s"%check_who)
                 if row[1].interval == 24*60 or check_who == check_who_old:continue  #连续的人 就不check了
-                history_chats = []
                 blob = "__"
                 while 1:
                     try:
@@ -77,8 +76,12 @@ class SkypePing(SkypeEventLoop):
                     except:
                         super(SkypePing, self).__init__(USERNAME, PASSWORD)
                     if blob != '__':break
+                history_chats = []
                 for i in range(4):
-                    history_chats += blob.chat.getMsgs()
+                    try:
+                        history_chats += blob.chat.getMsgs()  #聊天不够有可能导致失败
+                    except:
+                        history_chats += ' '
                 history_chats_dict[check_who] = history_chats
                 check_who_old = check_who
             #如果历史中他已经在这条消息下边出现过回复了，则pass,且修订下次为一天后,interval也要改
