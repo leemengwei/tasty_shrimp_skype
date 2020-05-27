@@ -24,12 +24,12 @@ COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a43
 MAX_SEND = 15 
 ADD_ONS = {'try_more': 'If vessel still open? May try further:\n'}
 
-@timeout_decorator.timeout(20)
+@timeout_decorator.timeout(30)
 def timeout_getblob(sk, to_whom):
     blob = sk.contacts[to_whom]
     return blob
 
-@timeout_decorator.timeout(10)
+@timeout_decorator.timeout(20)
 def timeout_sendMsg(blob, talking_what):
     blob.chat.sendMsg(talking_what)
 
@@ -37,7 +37,7 @@ class SkypePing(SkypeEventLoop):
     def __init__(self):
         #Log in here:
         print("Now logging in...Are You Sure????", USERNAME, PASSWORD)
-        input()
+        #input()
         super(SkypePing, self).__init__(USERNAME, PASSWORD)
         print("Now preparing listener...")
         self.column_order_list = ['talking_what', 'when', 'interval', 'counter', 'dirty']
@@ -57,17 +57,29 @@ class SkypePing(SkypeEventLoop):
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.strptime(row[1].when.split('.')[0], "%Y-%m-%d %H:%M:%S")
                 self.tasks.iloc[row_idx, self.talking_what_column_index] = str(row[1].talking_what)
             print("CHECKPOINT LOADED...CHECKING HISTORY.... ")
-            #所有无忧启动,check历史聊天
+            #所有无忧启动,check历史聊天,形成dict,保存下来
             history_chats_dict = {}
-            for check_who in set(self.tasks.index):
+            check_who_old = ''
+            for row in self.tasks.iterrows():
+                check_who = row[0]
                 print("Reading history chats %s"%check_who)
+                sys.stdout.flush()
+                if row[1].interval == 24*60 or check_who == check_who_old:continue  #连续的人 就不check了
                 history_chats = []
-                for i in range(10):
-                    blob = timeout_getblob(self.skype, check_who)
+                blob = "__"
+                while 1:
+                    try:
+                        blob = timeout_getblob(self.skype, check_who)
+                    except:
+                        super(SkypePing, self).__init__(USERNAME, PASSWORD)
+                    if blob != '__':break
+                for i in range(4):
                     history_chats += blob.chat.getMsgs()
                 history_chats_dict[check_who] = history_chats
+                check_who_old = check_who
             #如果历史中他已经在这条消息下边出现过回复了，则pass,且修订下次为一天后,interval也要改
             for row_idx,row in enumerate(self.tasks.iterrows()):
+                if self.tasks.iloc[row_idx, self.interval_column_index] == 24*60:continue#间隔都24h了，说明他被check过了
                 check_who = row[0]
                 talking_what = row[1].talking_what
                 he_talked_at = str(history_chats_dict[check_who]).find("userId='%s'"%check_who)
@@ -76,11 +88,8 @@ class SkypePing(SkypeEventLoop):
                     print("No fucking reply, will just sent %s latter!"%check_who)
                     continue    #fuck him, will just sent him latter!
                 if he_talked_at<I_talked_at:     #he saw my message!
-                    if not self.tasks.iloc[row_idx, self.interval_column_index] == 24*60: #间隔还没改成24h
-                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
-                        self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
-                    else:   #间隔都24h了，说明他被check过了
-                        pass
+                    self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
+                    self.tasks.iloc[row_idx, self.interval_column_index] = 24*60
                     print("%s has been replied to msg:%s..., will send after 24h"%(check_who,talking_what[:20]))
         self.tasks = self.tasks.sort_index()
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
