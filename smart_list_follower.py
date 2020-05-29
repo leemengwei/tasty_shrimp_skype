@@ -214,7 +214,8 @@ class SkypePing(SkypeEventLoop):
             if to_whom in self.tasks.index:
                 self.tasks = self.tasks.drop(to_whom)
                 try:
-                    timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)
+                    timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)    #Report to Mowin
+                    timeout_sendMsg(timeout_getblob(to_whom), "~")    #Report to him as well
                 except Exception as e:
                     my_print(e)
         #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
@@ -222,18 +223,34 @@ class SkypePing(SkypeEventLoop):
             self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
             self.tasks.loc[whos_talking, 'interval'] = 24*60
         #Case 4 收到消单信号
-        elif (whos_talking in COMMANDERS.values() and len(re.findall("\[CANCEL:(.*?)\]", talking_what))):     
-            cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)[0]
-            idx_keep = []
-            for idx,i in enumerate(self.tasks.iterrows()):
-                if cancel_what not in i[1].talking_what:
-                    idx_keep.append(idx)
-                else:
-                    try:
-                        timeout_sendMsg(REPORT_BLOB, "A job Canceled at: "+i[0])
-                    except Exception as e:
-                        my_print(e)
-            self.tasks = self.tasks.iloc[idx_keep]
+        elif whos_talking in COMMANDERS.values():
+            cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)
+            cancel_whom = re.findall("\[WHOM:(.*?)\]", talking_what)
+            if len(cancel_what)<=0:
+                pass  #连取消什么都没给，直接跳过
+            else:
+                cancel_what = cancel_what[0]
+                cancel_whom = cancel_whom[0] if len(cancel_whom)>0 else 'IM FUCKED'  #Im fucked 是决不会出现的id
+                #一行行看内容、id，决定是否keep：
+                idx_keep = []
+                for idx,i in enumerate(self.tasks.iterrows()):
+                    if cancel_what not in i[1].talking_what:
+                        idx_keep.append(idx)
+                    else:   # 出现了cancel涉及的内容
+                        if cancel_whom == 'IM FUCKED':   #Subcase1 没声明谁，整批量取消
+                            try:
+                                timeout_sendMsg(REPORT_BLOB, "A job Canceled at: "+i[0])
+                            except Exception as e:
+                                my_print(e)
+                        else:                            #Subcase2 声明是谁了
+                            if cancel_whom == i[0]:  # whom也完全匹配
+                                try:
+                                    timeout_sendMsg(REPORT_BLOB, "A Specific job Canceled for: "+i[0])
+                                except Exception as e:
+                                    my_print(e)
+                            else:                   #whom 没匹配上，那就留着
+                                idx_keep.append(idx)
+                self.tasks = self.tasks.iloc[idx_keep]
         #Case 5 没收到有效信号
         else:
             pass
@@ -248,7 +265,7 @@ class SkypePing(SkypeEventLoop):
         for row_idx,row in enumerate(self.tasks.iterrows()):
             to_whom = row[0]
             talking_what = row[1].talking_what
-            if row[1].when<datetime.datetime.now():
+            if row[1].when<datetime.datetime.now():    #某人该发了
                 if not isinstance(talking_what, str) or len(talking_what)==0:continue
                 my_print("Now following....", to_whom, talking_what)
                 if to_whom!=to_whom_old:   #如果两个连续的是同一个人，那么不用重复getblob了
@@ -258,16 +275,18 @@ class SkypePing(SkypeEventLoop):
                         my_print("Error getting blob %s, will retry soon..."%to_whom)
                 try:
                     timeout_sendMsg(blob, talking_what)
+                    #把follow完的自动更新一下任务状态
+                    self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
+                    self.tasks.iloc[row_idx, self.counter_column_index] += 1
                 except Exception as e:
                     if '403' in str(e):
-                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                         my_print("403 Sending %s, as success"%to_whom)
+                        #把follow完的自动更新一下任务状态
+                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
+                        self.tasks.iloc[row_idx, self.counter_column_index] += 1
                     else:
                         my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
                         pass
-                #把follow完的自动更新一下任务状态
-                self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
-                self.tasks.iloc[row_idx, self.counter_column_index] += 1
                 if self.tasks.iloc[row_idx, self.counter_column_index] > MAX_SEND:
                     enough_is_enough.append(row_idx)
                     my_print("Enough for %s, will sooner let him go"%to_whom)
