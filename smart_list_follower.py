@@ -271,11 +271,18 @@ class SkypePing(SkypeEventLoop):
                     try:
                         blob = timeout_getblob(self.skype, to_whom)
                     except Exception as e:
+                        blob = []
                         my_print("Error getting blob %s, will retry soon..."%to_whom)
                 sampled_add_ons = random.choice(add_ons.add_ons_not_24[row[1].counter]) if len(add_ons.add_ons_not_24[row[1].counter])>0 else []
-                if len(sampled_add_ons)==0:  #没有addons，应该刚发没几次。
-                    timeout_sendMsg(blob, talking_what)
-<<<<<<< HEAD
+                if len(sampled_add_ons)==0:  #没有addons，应该刚发没几次，直接发就可以了。
+                    try:
+                        timeout_sendMsg(blob, _i_)
+                    except Exception as e:
+                        if '403' in str(e):
+                            my_print("403 Sending %s, as success"%to_whom)
+                        else:
+                            my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
+                            pass
                 else:  #有add_ons:
                     for _i_ in sampled_add_ons:
                         _i_ = talking_what if _i_ == 'SKYPE_CONTENT' else _i_
@@ -291,20 +298,6 @@ class SkypePing(SkypeEventLoop):
                 #把follow完的自动更新一下任务状态
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                 self.tasks.iloc[row_idx, self.counter_column_index] += 1
-=======
-                    #把follow完的自动更新一下任务状态
-                    self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
-                    self.tasks.iloc[row_idx, self.counter_column_index] += 1
-                except Exception as e:
-                    if '403' in str(e):
-                        my_print("403 Sending %s, as success"%to_whom)
-                        #把follow完的自动更新一下任务状态
-                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
-                        self.tasks.iloc[row_idx, self.counter_column_index] += 1
-                    else:
-                        my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
-                        pass
->>>>>>> 5a9459070eee051513a113e877f54eb83e32e10f
                 if self.tasks.iloc[row_idx, self.counter_column_index] > MAX_SEND:
                     enough_is_enough.append(row_idx)
                     my_print("Enough for %s, will sooner let him go"%to_whom)
