@@ -13,6 +13,7 @@ from multiprocessing.pool import Pool
 import collections
 import random
 import re
+import add_ons
 
 USERNAME = '18601156335' 
 #USERNAME = 'mengxuan@bancosta.com' 
@@ -22,7 +23,6 @@ list_path = 'data/lists_listener/'
 
 COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a4333d00d55551e'}
 MAX_SEND = 15 
-ADD_ONS = {'try_more': 'If vessel still open? May try further:\n'}
 
 def my_print(what, a='',b='',c='',d='',e='',f='',g=''):
     print(what,a,b,c,d,e,f,g)
@@ -210,7 +210,7 @@ class SkypePing(SkypeEventLoop):
             self.tasks = self.tasks.append(this_task)
             self.tasks = self.tasks.sort_index()
         #Case 2 收到停止信号
-        elif (whos_talking in COMMANDERS.values() and ' ~' in talking_what):  
+        if (whos_talking in COMMANDERS.values() and ' ~' in talking_what):  
             if to_whom in self.tasks.index:
                 self.tasks = self.tasks.drop(to_whom)
                 try:
@@ -218,7 +218,7 @@ class SkypePing(SkypeEventLoop):
                 except Exception as e:
                     my_print(e)
         #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
-        elif whos_talking in self.tasks.index:
+        if whos_talking in self.tasks.index:
             self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
             self.tasks.loc[whos_talking, 'interval'] = 24*60
         #Case 4 收到消单信号
@@ -235,8 +235,7 @@ class SkypePing(SkypeEventLoop):
                         my_print(e)
             self.tasks = self.tasks.iloc[idx_keep]
         #Case 5 没收到有效信号
-        else:
-            pass
+        pass
         #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, USERNAME, PASSWORD)
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
         return
@@ -256,15 +255,21 @@ class SkypePing(SkypeEventLoop):
                         blob = timeout_getblob(self.skype, to_whom)
                     except Exception as e:
                         my_print("Error getting blob %s, will retry soon..."%to_whom)
-                try:
+                sampled_add_ons = random.choice(add_ons.add_ons_not_24[row[1].counter]) if len(add_ons.add_ons_not_24[row[1].counter])>0 else []
+                if len(sampled_add_ons)==0:  #没有addons，应该刚发没几次。
                     timeout_sendMsg(blob, talking_what)
-                except Exception as e:
-                    if '403' in str(e):
-                        self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
-                        my_print("403 Sending %s, as success"%to_whom)
-                    else:
-                        my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
-                        pass
+                else:  #有add_ons:
+                    for _i_ in sampled_add_ons:
+                        _i_ = talking_what if _i_ == 'SKYPE_CONTENT' else _i_
+                        _i_ = _i_.replace("SKYPE_CONTENT", talking_what)
+                        try:
+                            timeout_sendMsg(blob, _i_)
+                        except Exception as e:
+                            if '403' in str(e):
+                                my_print("403 Sending %s, as success"%to_whom)
+                            else:
+                                my_print("Error sending %s, will retry soon..."%to_whom, talking_what, e)
+                                pass
                 #把follow完的自动更新一下任务状态
                 self.tasks.iloc[row_idx, self.when_column_index] = datetime.datetime.now()+datetime.timedelta(minutes=row[1].interval)
                 self.tasks.iloc[row_idx, self.counter_column_index] += 1
