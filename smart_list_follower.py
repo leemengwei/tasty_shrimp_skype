@@ -273,7 +273,10 @@ class SkypePing(SkypeEventLoop):
                     except Exception as e:
                         blob = []
                         my_print("Error getting blob %s, will retry soon..."%to_whom)
-                sampled_add_ons = random.choice(add_ons.add_ons_not_24[row[1].counter]) if len(add_ons.add_ons_not_24[row[1].counter])>0 else []
+                if row[1].interval != 24*60:    #分为用24h的语料和非24h的
+                    sampled_add_ons = random.choice(add_ons.add_ons_not_24[row[1].counter]) if len(add_ons.add_ons_not_24[row[1].counter])>0 else []
+                else:
+                    sampled_add_ons = random.choice(add_ons.add_ons_24[row[1].counter]) if len(add_ons.add_ons_24[row[1].counter])>0 else []
                 if len(sampled_add_ons)==0:  #没有addons，应该刚发没几次，直接发就可以了。
                     try:
                         timeout_sendMsg(blob, _i_)
