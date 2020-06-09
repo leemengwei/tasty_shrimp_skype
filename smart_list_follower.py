@@ -279,7 +279,7 @@ class SkypePing(SkypeEventLoop):
                     sampled_add_ons = random.choice(add_ons.add_ons_24[row[1].counter]) if len(add_ons.add_ons_24[row[1].counter])>0 else []
                 if len(sampled_add_ons)==0:  #没有addons，应该刚发没几次，直接发就可以了。
                     try:
-                        timeout_sendMsg(blob, _i_)
+                        timeout_sendMsg(blob, talking_what)
                     except Exception as e:
                         if '403' in str(e):
                             my_print("403 Sending %s, as success"%to_whom)
