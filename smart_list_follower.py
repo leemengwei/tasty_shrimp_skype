@@ -37,6 +37,7 @@ def timeout_getblob(sk, to_whom):
 @timeout_decorator.timeout(20)
 def timeout_sendMsg(blob, talking_what):
     blob.chat.sendMsg(talking_what)
+    pass
 
 class SkypePing(SkypeEventLoop):
     def __init__(self):
@@ -56,6 +57,9 @@ class SkypePing(SkypeEventLoop):
         self.lists_blob_old = collections.OrderedDict()
         self.he_who_replied = []
         self.PIC_replied_status = collections.OrderedDict()
+        self.is_ready = False
+
+        #无忧Restart相关事宜
         if len(sys.argv) > 1:
             self.tasks = pd.read_csv('data/lists_listener/follow_up_checkpoint.csv', index_col=0) 
             for row_idx,row in enumerate(self.tasks.iterrows()):
@@ -185,14 +189,7 @@ class SkypePing(SkypeEventLoop):
         to_whom = event.msg.chatId.replace("8:", '')
         when = event.msg.time
         if not isinstance(talking_what,str):return
-        #Case 0 收到测试活动信号
-        if whos_talking in COMMANDERS.values() and 'Alive?'==talking_what:
-            try:
-                blob = timeout_getblob(self.skype, to_whom)
-                timeout_sendMsg(blob, 'Alive-Yes')
-            except Exception as e:
-                my_print("Time out testing...", e)
-        #Case 1 收到重复信号
+        #Case 1 收到新任务 .x
         if whos_talking in COMMANDERS.values() and ' .' in talking_what:  #' .' or ' ..'
             try:
                 interval = talking_what[-1]
@@ -206,23 +203,26 @@ class SkypePing(SkypeEventLoop):
                 my_print("No time interval, pass...")
                 return
             this_task = pd.DataFrame(index=[to_whom], data = {'talking_what':[talking_what], 'when':[when+datetime.timedelta(minutes=interval+8*60)], 'interval':[interval], "counter":1, "dirty":False}, columns=self.column_order_list)
-            #任务更新操作：任务从始至终叠加
+            #Interfere任务更新操作：任务从始至终叠加
             self.tasks = self.tasks.append(this_task)
             self.tasks = self.tasks.sort_index()
-        #Case 2 收到停止信号
+        #Case 2 收到单人全停信号 ~
         if (whos_talking in COMMANDERS.values() and ' ~' in talking_what):  
             if to_whom in self.tasks.index:
+                #Interfere:
                 self.tasks = self.tasks.drop(to_whom)
                 try:
                     timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)    #Report to Mowin
                     timeout_sendMsg(timeout_getblob(to_whom), "~")    #Report to him as well
                 except Exception as e:
                     my_print(e)
-        #Case 3 某人回复了，则所有关于他的聊天24h或更长之后repeat。
+        #Case 3 收到相关人回复 
+        #某人回复了，则所有关于他的聊天24h或更长之后repeat
         if whos_talking in self.tasks.index:
+            #Interfere:
             self.tasks.loc[whos_talking, 'when'] = datetime.datetime.now()+datetime.timedelta(minutes=24*60)
             self.tasks.loc[whos_talking, 'interval'] = 24*60
-        #Case 4 收到消单信号
+        #Case 4 收到消单信号 [CANCEL:xxx][WHOM:xxx]
         elif whos_talking in COMMANDERS.values():
             cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)
             cancel_whom = re.findall("\[WHOM:(.*?)\]", talking_what)
@@ -250,10 +250,43 @@ class SkypePing(SkypeEventLoop):
                                     my_print(e)
                             else:                   #whom 没匹配上，那就留着
                                 idx_keep.append(idx)
+                #Interfere:
                 self.tasks = self.tasks.iloc[idx_keep]
-        #Case 5 没收到有效信号
+        #Case 5 收到测试活动信号 [TASKS]
+        if whos_talking in COMMANDERS.values() and '[TASKS]'==talking_what:
+            try:
+                timeout_sendMsg(REPORT_BLOB, str(self.tasks))
+            except Exception as e:
+                my_print("Time out testing...", e)
+        #Case 5 收到测试活动信号 [STATE]
+        if whos_talking in COMMANDERS.values() and '[STATE]'==talking_what:
+            try:
+                timeout_sendMsg(REPORT_BLOB, 'Alive-True, Ready-%s'%self.is_ready)
+            except Exception as e:
+                my_print("Time out testing...", e)
+        #Case 6 收到READY信号 [READY]
+        if whos_talking in COMMANDERS.values() and '[READY]'==talking_what:
+            self.is_ready = True
+            try:
+                timeout_sendMsg(REPORT_BLOB, 'Ready-%s'%self.is_ready)
+            except Exception as e:
+                my_print("Time out testing...", e)
+        #Case 7 收到暂停信号 [PAUSE]
+        if whos_talking in COMMANDERS.values() and '[PAUSE]'==talking_what:
+            self.is_ready = False
+            try:
+                timeout_sendMsg(REPORT_BLOB, 'Ready-%s'%self.is_ready)
+            except Exception as e:
+                my_print("Time out testing...", e)
+        #Case 8 收到调试信号 [EMBED]
+        if whos_talking in COMMANDERS.values() and '[EMBED]'==talking_what:
+            embed()
+        #Case 9 收到退出信号 [EXIT]
+        if whos_talking in COMMANDERS.values() and '[EXIT]'==talking_what:
+            sys.exit()
         pass
         #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, USERNAME, PASSWORD)
+        #Disk:
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
         return
 
@@ -325,7 +358,10 @@ class SkypePing(SkypeEventLoop):
             my_print(self.tasks)
 
         #2）如何follow：
-        self.follow_method()
+        if self.is_ready:
+            self.follow_method()
+        else:
+            pass
         my_print("Event type:", type(event), datetime.datetime.now())
 
 
