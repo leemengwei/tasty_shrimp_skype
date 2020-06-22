@@ -224,8 +224,8 @@ class SkypePing(SkypeEventLoop):
             self.tasks.loc[whos_talking, 'interval'] = 24*60
         #Case 4 收到消单信号 [CANCEL:xxx][WHOM:xxx]
         elif whos_talking in COMMANDERS.values():
-            cancel_what = re.findall("\[CANCEL:(.*?)\]", talking_what)
-            cancel_whom = re.findall("\[WHOM:(.*?)\]", talking_what)
+            cancel_what = re.findall("\[CANCEL: (.*?)\]", talking_what)
+            cancel_whom = re.findall("\[WHOM: (.*?)\]", talking_what)
             if len(cancel_what)<=0:
                 pass  #连取消什么都没给，直接跳过
             else:
