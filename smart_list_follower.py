@@ -279,10 +279,10 @@ class SkypePing(SkypeEventLoop):
             except Exception as e:
                 my_print("Time out testing...", e)
         #Case 8 收到调试信号 [EMBED]
-        if whos_talking in COMMANDERS.values() and '[EMBED]'==talking_what:
+        if whos_talking in COMMANDERS.values() and '[*EMBED*]'==talking_what:
             embed()
         #Case 9 收到退出信号 [EXIT]
-        if whos_talking in COMMANDERS.values() and '[EXIT]'==talking_what:
+        if whos_talking in COMMANDERS.values() and '[*EXIT*]'==talking_what:
             sys.exit()
         pass
         #blob, sk = daily_bob.relentlessly_get_blob_by_id(self.skype, to_whom, USERNAME, PASSWORD)
