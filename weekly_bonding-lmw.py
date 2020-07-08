@@ -82,6 +82,7 @@ README = \
 12、对Skype/Personal Email导入船名和货物，点对点发送  X
 13、检测回复、促成Fixutre   X
 14、获取丰厚佣金   X
+
 开发逻辑：有关9&10.
 1、逐个解析所有msg；
 2、逐个找出msg发件人；

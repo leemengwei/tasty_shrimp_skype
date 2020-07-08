@@ -14,15 +14,19 @@ import collections
 import random
 import re
 import add_ons
+import copy
 
-USERNAME = '18601156335' 
+USERNAME = '1099366685@qq.com' 
 #USERNAME = 'mengxuan@bancosta.com' 
 PASSWORD = 'lmw196411' 
 #PASSWORD = 'Bcchina2020' 
 list_path = 'data/lists_listener/'
 
-COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a4333d00d55551e'}
-MAX_SEND = 15 
+if USERNAME == '1099366685@qq.com':   #off line test case
+    COMMANDERS = {'test_mengxuan':'live:892bfe64f9296876', '1099366685@qq.com':'live:1099366685'}
+else:             #real case
+    COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a4333d00d55551e'}
+MAX_SEND = 2
 
 def my_print(what, a='',b='',c='',d='',e='',f='',g=''):
     print(what,a,b,c,d,e,f,g)
@@ -42,7 +46,8 @@ def timeout_sendMsg(blob, talking_what):
 class SkypePing(SkypeEventLoop):
     def __init__(self):
         #Log in here:
-        my_print("Now logging in...Are You Sure????", USERNAME, PASSWORD)
+        global report_to
+        my_print("Now logging in... and reporting to %s Are You Sure????"%(report_to),USERNAME, PASSWORD)
         #input()
         super(SkypePing, self).__init__(USERNAME, PASSWORD)
         my_print("Now preparing listener...")
@@ -183,6 +188,12 @@ class SkypePing(SkypeEventLoop):
     #    os.system("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
     #    return
 
+    def leave_traces(self):
+        my_print("Leaving traces %s"%self.for_traces)
+        self.for_traces = pd.DataFrame(self.for_traces).T if not isinstance(self.for_traces, pd.core.frame.DataFrame) else self.for_traces
+        self.for_traces.to_csv('data/lists_listener/follow_traces.csv', mode='a', header=False)
+        return
+
     def listen_method(self, event):
         whos_talking = event.msg.userId
         talking_what = event.msg.content
@@ -210,6 +221,9 @@ class SkypePing(SkypeEventLoop):
         if (whos_talking in COMMANDERS.values() and ' ~' in talking_what):  
             if to_whom in self.tasks.index:
                 #Interfere:
+                self.for_traces = copy.deepcopy(self.tasks.loc[to_whom])
+                if len(self.for_traces)>0:
+                    self.leave_traces()
                 self.tasks = self.tasks.drop(to_whom)
                 try:
                     timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)    #Report to Mowin
@@ -251,6 +265,9 @@ class SkypePing(SkypeEventLoop):
                             else:                   #whom 没匹配上，那就留着
                                 idx_keep.append(idx)
                 #Interfere:
+                self.for_traces = self.tasks.iloc[list(set(range(len(self.tasks)))-set(idx_keep))]
+                if len(self.for_traces)>0:
+                    self.leave_traces()
                 self.tasks = self.tasks.iloc[idx_keep]
         #Case 5 收到测试活动信号 [TASKS]
         if whos_talking in COMMANDERS.values() and '[TASKS]'==talking_what:
@@ -342,9 +359,13 @@ class SkypePing(SkypeEventLoop):
                 to_whom_old = to_whom
             else:       #还不到时间
                 pass
-        #发的够多的就可以不要了，少的留着
+        #Interfere,发的够多的就可以不要了，少的留着
+        self.for_traces = copy.deepcopy(self.tasks.iloc[enough_is_enough])
+        if len(self.for_traces)>0:
+            self.leave_traces()
         self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_is_enough))]
-        self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
+        self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv')
+        
 
     def onEvent(self, event):
         #挂单项目：有消息才会激活事件，根据目前挂的单更新对应的状态单
@@ -355,7 +376,7 @@ class SkypePing(SkypeEventLoop):
         #1）如何listen：
         if isinstance(event, SkypeNewMessageEvent):
             self.listen_method(event)
-            my_print(self.tasks)
+            #my_print(self.tasks)
 
         #2）如何follow：
         if self.is_ready:
@@ -367,10 +388,9 @@ class SkypePing(SkypeEventLoop):
 
 if __name__ == "__main__":
     my_print("Start")
-    sk = SkypePing()
     report_to = COMMANDERS[list(set(COMMANDERS.keys()) - set([USERNAME]))[0]]
+    sk = SkypePing()
     REPORT_BLOB = timeout_getblob(sk.skype, report_to)
-
     sk.loop()
 
 
