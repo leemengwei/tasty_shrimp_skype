@@ -15,6 +15,7 @@ import argparse
 import shutil
 from time_counter import calc_time
 import pickle
+import copy
 
 try:
     from multiprocessing.pool import Pool
@@ -82,6 +83,7 @@ README = \
 12、对Skype/Personal Email导入船名和货物，点对点发送  X
 13、检测回复、促成Fixutre   X
 14、获取丰厚佣金   X
+
 开发逻辑：有关9&10.
 1、逐个解析所有msg；
 2、逐个找出msg发件人；
@@ -91,6 +93,16 @@ README = \
 6、生成该blob；
 *************************************
 '''
+#def reading_whole_pickle():
+#    f = open(DATA_PATH_PREFIX+'/middle_blobs.pkl', 'rb')
+#    blobs = []
+#    while 1:
+#        try:
+#            blobs.append(pickle.load(f))
+#        except EOFError:
+#            break
+#    return blobs
+
 @calc_time
 def get_vessels_repository_and_patterns(args):
     workbook = xlrd.open_workbook(DATA_PATH_PREFIX+"/vessels_repository.xlsx")
@@ -117,11 +129,11 @@ def get_vessels_repository_and_patterns(args):
     pattern1 = head+'|'.join(safe_name)+tail
     #Mv m.v m/v added for unsafe:
     head = r'[M][\.|/]?[V][\.|/:]?[\'|\"]?('
-    tail = ')[^A-Za-z0-9]'
+    tail = ')[/]*[^A-Za-z0-9]'
     pattern2 = head+'|'.join(unsafe_name)+tail
     #Porpose propse purpose pps ppse offer for:
     head = r'[p][u|r]?[r|o]*[p][o]?[s][e]?|offer for[ :\n\r\t]*[\'|\"]?('
-    tail = ')[^A-Za-z0-9]'
+    tail = ')[/]*[^A-Za-z0-9]'
     pattern3 = head+'|'.join(unsafe_name)+tail
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
@@ -196,39 +208,45 @@ def parse_msg(args, msg_file_path):
         msg.close()
         return msg_body.decode()   #TODO: 这里是否有回复？？ 此时回复是否有法判断？
     f = msg_file_path  # Replace with yours
-    msg_sender = None
+    msg_sender = ''
+    msg_subject = ''
+    msg_content = ''
+    msg_body = ''
     try:
         msg = Message(f)
         try:
             msg_sender = msg.sender
         except:
-            msg_sender = 'Cant get sender'
+            msg_sender = 'Error, Cant get sender'
         try:
             msg_subject = msg.subject
         except:
-            msg_subject = 'Cant get subject'
+            msg_subject = 'Error, Cant get subject'
         try:
             msg_body = msg.body
         except:
-            msg_body = 'Cant get body'
-        if msg_sender is None:
-            msg_sender = 'Cant get sender'
-        if msg_subject is None:
-            msg_subject = 'Cant get subject'
-        if msg_body is None:
-            msg_body = 'Cant get body'
+            msg_body = 'Error, Cant get body'
+        if msg_sender == '':
+            msg_sender = 'Error, Cant get sender'
+        if msg_subject == '':
+            msg_subject = 'Error, Cant get subject'
+        if msg_body == '':
+            msg_body = 'Error, Cant get body'
     except Exception as e:
         try:
+            msg_sender = 'Error, Wont have sender' if msg_sender == '' else msg_sender
+            msg_subject = 'Error, Wont have subject' if msg_subject == '' else msg_subject
             try:
                 msg_body = olefile_read(f)
             except:
                 msg_body = textract.parsers.process(f)
                 print("*"*99)
-            msg_sender = 'Wont have sender' if msg_sender is None else msg_sender
-            msg_subject = 'Wont have subject' if msg_subject is None else msg_subject
         except:
-            if args.DEBUG:print("Failed on extract_msg!",e)
-            return msg_sender, False, False
+            if args.DEBUG:
+                print("Failed on extract_msg!",e)
+            pass
+    msg_subject = '' if msg_subject is None else msg_subject
+    msg_body = '' if msg_body is None else msg_body
     msg_content = msg_subject + msg_body  #Content include all
     for i in re.findall(r'([ ]?<mailto:[\.A-Za-z0-9\-_@:%]*>[ ]?)', msg_content):
         msg_content = msg_content.replace(i, '')
@@ -272,11 +290,11 @@ def judge_if_is_not_REply_or_others(args, sender_email, msg_subject, msg_subject
             '''.replace(' ','').split('\n')
     other_trashes_in_subject_and_content = list(set(other_trashes_in_subject_and_content)-set({''}))
     other_trashes_pattern = re.compile('|'.join(other_trashes_in_subject_and_content), re.I)
-    if len(re.findall('(^r|^re|^reply)[:| |-|,]', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
-        if 'ausca' in str(sender_email).lower() or '@swnav.com.tw' in str(sender_email).lower() or '@akij.net' in str(sender_email).lower():   #Ausca always with RE, so let it be.
-            pass
-        else:
-            return False
+    must_solve_status = (np.array([str(sender_email).lower().find(i.lower()) for i in SENDERS_must_solve_with_RE])>=0).any()
+    if must_solve_status:  #Ausca always with RE, so let it be.
+        return True
+    elif len(re.findall('(^r|^re|^reply)[:| |-|,]', msg_subject, re.I))>0:    #If this is REply!! may cotian many irrelevant ships, so No!
+        return False
     elif len(other_trashes_pattern.findall(msg_subject_and_content))>0:   #If others
         if args.DEBUG:print("Other trashes found:%s"%other_trashes_pattern.findall(msg_subject_and_content))
         return False
@@ -295,43 +313,91 @@ def judge_if_direct_bonding(args, sender_email, bonding_repository):
         if args.DEBUG:print("Not bonding")
     return direct_bonding
 
+def take_them_out(them):
+    tmp = []
+    for i in them:
+        for j in i:
+            if j != '':
+                tmp.append(j.strip(' ').upper())
+    return tmp
+
 @calc_time
 def retrieve_vessel(args, msg_content, vessels_patterns):
-    vessels_name = []
     vessels_pattern_safe = vessels_patterns['safe']
     vessels_pattern_unsafe = vessels_patterns['unsafe']
     vessels_name_raw_safe = vessels_pattern_safe.findall(msg_content)   #return []
     vessels_name_raw_unsafe = vessels_pattern_unsafe.findall(msg_content)  #return [()]
-    vessel_positions_safe = [i.start() for i in vessels_pattern_safe.finditer(msg_content)]
-    vessel_positions_unsafe = [i.start() for i in vessels_pattern_unsafe.finditer(msg_content)]
-    #If safe name occured then ignore unsafe name:
+    vessels_position_raw_safe = [i.start() for i in vessels_pattern_safe.finditer(msg_content)]
+    vessels_position_raw_unsafe = [i.start() for i in vessels_pattern_unsafe.finditer(msg_content)]
+    #整理各自匹配结果
+    vessels_name_safe = take_them_out(vessels_name_raw_safe)
+    vessels_name_unsafe = take_them_out(vessels_name_raw_unsafe)
+    vessels_position_safe = vessels_position_raw_safe[:len(vessels_name_safe)]
+    vessels_position_unsafe = vessels_position_raw_unsafe[:len(vessels_name_unsafe)]
+    if args.DEBUG:print('RAW\n SAFE\n', vessels_name_safe, vessels_position_safe, '\nUNSAFE\n', vessels_name_unsafe, vessels_position_unsafe)
+    #剔除unsafe某些被safe包含项目
+    redudant_pos = []
     redudant_name = []
-    redudant_idx = []
-    for idx,temp in enumerate(vessels_name_raw_unsafe):
-        short_name = temp[1]
-        pos = vessel_positions_unsafe[idx]
-        if short_name in str(vessels_name_raw_safe):
-            redudant_name.append(short_name)
-            redudant_idx.append(pos)
-    vessel_positions_unsafe = list(set(vessel_positions_unsafe)-set(redudant_idx)) 
-    #Taken out names:
-    vessel_positions = vessel_positions_safe + vessel_positions_unsafe
-    vessels_name_raw = vessels_name_raw_safe + vessels_name_raw_unsafe
-    if len(vessels_name_raw) == 0:
-        pass
-    else:
-        for i in vessels_name_raw:
-            for j in i:
-                if j != '' and j not in redudant_name:
-                    vessels_name.append(j.strip(' '))
-    for idx,this_vessel_name in enumerate(vessels_name):
-        vessels_name[idx] = this_vessel_name.upper()
+    for idx,unsafe_name in enumerate(vessels_name_unsafe):
+        if unsafe_name in str(vessels_name_safe):
+            redudant_name.append(unsafe_name)
+            redudant_pos.append(vessels_position_unsafe[idx])
+    for name in redudant_name:
+        vessels_name_unsafe.remove(name)
+    for pos in redudant_pos:
+        vessels_position_unsafe.remove(pos)
+    vessels_name = vessels_name_safe + vessels_name_unsafe
+    vessels_position = vessels_position_safe +vessels_position_unsafe
+    if args.DEBUG:print('OUT:', vessels_name, vessels_position)
+    #unsafe position总是找类似propose语句。。。判断
+    #vessels_position_safe = []
+    #vessels_position_unsafe = []
+    #for i in vessels_pattern_safe.finditer(msg_content):
+    #    if i.group() in str(vessels_name_raw_safe):
+    #        vessels_position_safe.append(i.start()) 
+    #    else:
+    #        pass
+    #for i in vessels_pattern_unsafe.finditer(msg_content):
+    #    if i.group() in str(vessels_name_raw_unsafe):
+    #        vessels_position_unsafe.append(i.start()) 
+    #    else:
+    #        pass
+    #[i.start() for i in re.finditer('Houston', msg_content, re.I)]
+
+    #If safe name occured then ignore unsafe name:
+    #redudant_name = []
+    #redudant_idx = []
+    #for idx,temp in enumerate(vessels_name_raw_unsafe):
+    #    for tmp in temp:
+    #        if tmp in str(vessels_name_raw_safe) and tmp != '':
+    #            redudant_name.append(tmp)
+    #            redudant_idx.append(vessels_position_unsafe[idx])
+
+    #for idx,temp in enumerate(vessels_name_raw_unsafe):
+    #    short_name = temp[1]
+    #    pos = vessels_position_unsafe[idx]
+    #    if short_name in str(vessels_name_raw_safe):  #短名字在长名字里
+    #        redudant_name.append(short_name)
+    #        redudant_idx.append(pos)
+
+    #vessels_position_unsafe = list(set(vessels_position_unsafe)-set(redudant_idx)) 
+    ##Taken out names:
+    #vessels_position = vessels_position_safe + vessels_position_unsafe
+    #vessels_name_raw = vessels_name_raw_safe + vessels_name_raw_unsafe
+    #vessels_name = []
+    #if len(vessels_name_raw) == 0:
+    #    pass
+    #else:
+    #    for i in vessels_name_raw:
+    #        for j in i:
+    #            if j != '' and j not in redudant_name:
+    #                vessels_name.append(j.strip(' ').upper())
     #order = vessels_name.index
     #vessels_name = list(set(vessels_name))
     #vessels_name.sort(key=order)
     if args.DEBUG:print("Got vessels name:", vessels_name)
-    assert len(vessels_name) == len(vessel_positions), 'len vessel and len position must equal'
-    return vessels_name, vessel_positions
+    assert len(vessels_name) == len(vessels_position), 'len vessel and len position must equal'
+    return vessels_name, vessels_position
 
 @calc_time
 def retrieve_skype(args, msg_content):
@@ -400,9 +466,9 @@ def retrieve_pic_skype(args, msg_content, vessels_name, skypes_id):
     return pic_skype
 
 @calc_time
-def retrieve_mv_pic_pair(args, msg_content, vessels_name, vessel_positions, person_names, person_positions):
+def retrieve_mv_pic_pair(args, msg_content, vessels_name, vessels_position, person_names, person_positions):
     mv_pic_pair = {}
-    for i,mv in zip(vessel_positions, vessels_name): 
+    for i,mv in zip(vessels_position, vessels_name): 
         above_person = ''
         below_person = ''
         above = np.where(i>np.array(person_positions))[0]
@@ -452,42 +518,51 @@ def get_bonding_repository(args):
 
 def solve_one_msg(struct):
     blob = {}
+    vessels_name = ['Not solved']
+    sender_email = ['Not solved']
+    skypes_id = ['Not solved']
+    pic_mailboxes = ['_BROKER_MAILBOXES_']
+    pic_skype = ['Not solved']
     global TRASH_SENDER
-    args, this_msg_file, FAILURE_LIST = struct[0], struct[1], struct[2]
+    row_idx, args, this_msg_file, FAILURE_LIST = struct[0], struct[1], struct[2], struct[3]
     msg_sender, msg_subject, msg_content = parse_msg(args, this_msg_file)
-    if msg_subject == False:
+    if 'Error' in str(msg_subject):
         FAILURE_LIST.append(this_msg_file)
-        return blob
+        pass
     #Now start:
     sender_email = retrieve_sender_email(args, msg_sender)
-    if 'balticbroker@' in str(sender_email).lower() or 'noreply@' in str(sender_email).lower() or 'support@tnt' in str(sender_email).lower():
-        return blob    #Just ignored these senders.
+    must_ignore_status = (np.array([str(sender_email).lower().find(i.lower()) for i in SENDERS_must_ignore])>=0).any()
+    if must_ignore_status:
+        pass    #Just ignored these senders.
+    #判断是否是Re或其他如Ausca的情况
     if judge_if_is_not_REply_or_others(args, sender_email, msg_subject, msg_content)==True:
-        vessels_name, vessel_positions = retrieve_vessel(args, msg_content, vessels_patterns)
-        if len(vessels_name)==0:return blob    #If no vessel found, just return
-        person_names, person_positions = retrieve_person_this_company(args, msg_sender, msg_content, company_person_skype_pattern)
-        skypes_id = retrieve_skype(args, msg_content)
-        pic_skype = retrieve_pic_skype(args, msg_content, vessels_name, skypes_id)
-        mv_pic_pair = retrieve_mv_pic_pair(args, msg_content, vessels_name, vessel_positions, person_names, person_positions)
-        pic_skype = mv_pic_pair
-        if judge_if_direct_bonding(args, sender_email, bonding_repository) is True:
-            #embed()   #company_person_skype
-            print(sender_email)
-            pic_mailboxes = retrieve_pic_mailboxes(args, msg_content, sender_email)
-        else:   #When not direct bonding
-            sender_email = '_BROKER_SENDER_'
-            skypes_id = ['_BROKER_SKYPES_']
-            pic_mailboxes = ['_BROKER_MAILBOXES_']
-            pic_skype.update({'_BROKER_TOKEN_':None})   #len=1 for direct, or len=2 for shit broker's msg
-    #    direct_bonding = True
-        blob = parse_blob(args, this_msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
+        vessels_name, vessels_position = retrieve_vessel(args, msg_content, vessels_patterns)
+        if len(vessels_name)==0:
+            pass    #If no vessel found, just pass
+        else:
+            person_names, person_positions = retrieve_person_this_company(args, msg_sender, msg_content, company_person_skype_pattern)
+            skypes_id = retrieve_skype(args, msg_content)
+            pic_skype = retrieve_pic_skype(args, msg_content, vessels_name, skypes_id)
+            mv_pic_pair = retrieve_mv_pic_pair(args, msg_content, vessels_name, vessels_position, person_names, person_positions)
+            pic_skype = mv_pic_pair
+            if judge_if_direct_bonding(args, sender_email, bonding_repository) is True:
+                #embed()   #company_person_skype
+                #print(sender_email)
+                pic_mailboxes = retrieve_pic_mailboxes(args, msg_content, sender_email)
+            else:   #When not direct bonding, broker
+                #sender_email = '_BROKER_SENDER_'
+                #skypes_id = ['_BROKER_SKYPES_']
+                pic_mailboxes = ['_BROKER_MAILBOXES_']
+                pic_skype.update({'_BROKER_TOKEN_': 'None'})   #len=1 for direct, or len=2 for shit broker's msg
     else:
         if args.DEBUG:print("This is Reply or with trashes! pass")
+        pass
+    blob = parse_blob(args, this_msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
     return blob
 
 def concat_blobs_through_history(args, blobs):
     for _idx_, blob in enumerate(blobs):
-        if blob == {}:continue
+        if 'Not solved' in str(blob):continue
         #Now that BLOB is here anyway, decide what to do:
         #SUBSTUTIVE: (for sender and pic_skype)
         for mv in blob['MV']:
@@ -525,6 +600,31 @@ def concat_blobs_through_history(args, blobs):
             SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
     return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB
 
+def to_viewpoint(blob_in):
+    #f = open(DATA_PATH_PREFIX+'/middle_blobs.pkl', 'ab')
+    #pickle.dump(blob_in, f)
+    #f.close()
+    #Just for show 注意Note 读入的数据还是来自pkl的（因为写进去的数据类型都变了 太麻烦）
+    blobs = copy.deepcopy(blob_in)
+    for row_idx, blob in enumerate(blobs):
+        for i in blob.keys():
+            blob[i] = [blob[i]]
+        #if blob != {}:
+        #    piece_of_output = pd.DataFrame(data=blob)[COLUMNS]
+        #    piece_of_output.index=[row_idx]  #just修改一下index
+        #    piece_of_output.to_csv(DATA_PATH_PREFIX+"/middle_blobs_for_view.csv", mode='a', header=False)
+    output = pd.DataFrame(data=blobs, index=range(len(blobs)))[COLUMNS]
+    output.to_csv("output/middle_blobs_for_view.csv", header=False)
+    return
+
+def moving_to_consumed(msg_files):
+    #To Consumed:
+    for this_msg_file in msg_files:
+        tmp = this_msg_file.split('/')
+        tmp.insert(-1, 'consumed')
+        tmp = '/'.join(tmp)
+        os.rename(this_msg_file, tmp)
+
 if __name__ == "__main__":
     print("Start principle net...")
 
@@ -537,8 +637,12 @@ if __name__ == "__main__":
     FROM_SCRATCH = args.FROM_SCRATCH
     DATA_PATH_PREFIX = './data/data_bonding_net/'
     BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
+    SENDERS_must_solve_with_RE = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/senders_must_solve_with_RE.txt").readlines()]
+    SENDERS_must_ignore = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/senders_must_ignore.txt").readlines()]
     WRONG_SKYPE_PAIR = pd.read_csv(DATA_PATH_PREFIX+"/problem_skype.csv", index_col=0) 
-    #From scratch? Checkpoint?
+    COLUMNS = ['MSG_FILE', 'MV', 'SENDER', 'SKYPES', 'MAILBOXES', 'PIC_SKYPE']
+
+    #From scratch? checkpoint?
     MV_SENDER_BLOB = {}
     SENDER_MAILBOXES_BLOB = {}
     SENDER_SKYPES_BLOB = {}
@@ -556,6 +660,11 @@ if __name__ == "__main__":
         consumed_files = glob.glob("%s/msgs/consumed/*.msg"%DATA_PATH_PREFIX)
         for this_consumed_file in consumed_files:
             shutil.move(this_consumed_file, this_consumed_file.replace("consumed",""))
+        #从零 Form a new middle blobs file
+        #pd.DataFrame(columns = COLUMNS).to_csv(DATA_PATH_PREFIX+'/middle_blobs_for_view.csv')
+        #if os.path.exists(DATA_PATH_PREFIX+'/middle_blobs.pkl'):
+        #    print("Start from scratch, removing blobs pikcle")
+        #    os.remove(DATA_PATH_PREFIX+'/middle_blobs.pkl')
         #checkpoint = pd.DataFrame()
     else:
         print("Running restart.... Loading checkpoint...")
@@ -602,13 +711,14 @@ if __name__ == "__main__":
     vessels_repository, vessels_patterns = get_vessels_repository_and_patterns(args)
     company_person_skype, company_person_skype_pattern = get_person_name_repository_and_patterns(args)
 
+    #第一部分，动态存储文件:
     #Loop over msgs:
     blobs = []
     if MP:
         pool = Pool(processes=int(cpu_count()/2))   #cpu_count()/2, 既省电也高效。
         struct_list = []
-        for i in range(len(msg_files)):
-            struct_list.append([args, msg_files[i], FAILURE_LIST])
+        for row_idx, i in enumerate(range(len(msg_files))):
+            struct_list.append([row_idx, args, msg_files[i], FAILURE_LIST])
         rs = pool.map_async(solve_one_msg, struct_list)
         while (True):
           if (rs.ready()): break
@@ -617,21 +727,29 @@ if __name__ == "__main__":
           time.sleep(10)
         blobs = rs.get()   #HISTORY ORDER IS WITHIN!! VERY CONVINIENT
     else:
-        for this_msg_file in tqdm.tqdm(msg_files):
-            struct_this = [args, this_msg_file, FAILURE_LIST]
+        for row_idx, this_msg_file in tqdm.tqdm(enumerate(msg_files), total=len(msg_files)):
+            struct_this = [row_idx, args, this_msg_file, FAILURE_LIST]
             blob = solve_one_msg(struct_this)
             blobs += [blob]
-    try:    #Try to give a log
-        print("Writing blobs to log....")
-        with open('output/log.log', 'w') as f:
-            f.write(str(blobs))
+    #try:    #Try to give a log
+    #    print("Writing blobs to log....")
+    #    with open('output/log.log', 'w') as f:
+    #        f.write(str(blobs))
+    #except Exception as e:
+    #    print("Error writing log, pass", e)
+    try:
+        to_viewpoint(blobs)
     except Exception as e:
-        print("Error writing log, pass", e)
+        print("Viewpoint error, pass", e)
+
+    #第二部分,读出动态存储的文件，来形成最终数据
+    #blobs_read = pd.read_csv(DATA_PATH_PREFIX+'/middle_blobs_for_view.csv', index_col=0)
+    #blobs_read = list(blobs_read.to_dict('index').values())
+    #blobs_read = reading_whole_pickle()
     #Loop over history:
     MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB = concat_blobs_through_history(args, blobs)
 
     #POSTPROCESSING:
-    #embed()
     #for sender_skypes, switch right or wrong
     for sender in SENDER_SKYPES_BLOB.keys():
         for idx,this_skype_id in enumerate(SENDER_SKYPES_BLOB[sender]):
@@ -672,18 +790,11 @@ if __name__ == "__main__":
         ok.to_csv('output/OK.csv', index=False)
         output_MV_SENDER_MAILBOXES_SKYPE.to_csv('output/core_MV_SENDER_MAILBOXES_SKYPE.csv', index=False)
     except:
-        print("Saving to csv error, your computer may be A piece of Shit! Will now interact mannually!")
+        print("Saving to csv error, your computer low performance! Will now interact mannually!")
         embed()
 
-    #To Consumed:
-    print("Moving to consumed...")
-    for msg_file in msg_files:
-        tmp = msg_file.split('/')
-        tmp.insert(-1, 'consumed')
-        tmp = '/'.join(tmp)
-        os.rename(msg_file, tmp)
-        pass
-    #embed()
-
-
+    moving_to_consumed(msg_files)
     print("All finished.")
+
+
+
