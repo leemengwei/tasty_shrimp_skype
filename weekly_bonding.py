@@ -599,6 +599,8 @@ def concat_blobs_through_history(args, blobs):
         # 2), for pic_skype
         for mv in blob['MV']:
             if mv in blob['PIC_SKYPE'].keys(): #首先确有其key
+                if 'Unsolved' in str(blob['PIC_SKYPE'][mv]):  #如果此时是Unsolved无效
+                    blob['PIC_SKYPE'][mv] = []                #则换位一个空值,再进行如下操作
                 if mv not in MV_PIC_BLOB.keys():   #第一次出现时：
                     if blob['PRIORITY'] == 'low':  #低优先级的填入，同时以额外token标记
                         MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv] + ['_BROKER_TOKEN_']
@@ -627,29 +629,29 @@ def concat_blobs_through_history(args, blobs):
         sender = blob['SENDER']
         #Worryring about shit broker? Will use as key, so let it be~
         # 3), for mailboxes
-        if 'Unsolved' in str(blob['MAILBOXES']):     #是无效值，无效值也要分为第一次or非第一次
-            if sender in SENDER_MAILBOXES_BLOB.keys():
-                SENDER_MAILBOXES_BLOB[sender] += []
+        if 'Unsolved' in str(blob['MAILBOXES']):     #此次是无效值，无效值也要分为第一次or非第一次
+            if sender in SENDER_MAILBOXES_BLOB.keys():   #非第一次出现，但此次是无效，所以pass
+                pass
             else:
-                SENDER_MAILBOXES_BLOB[sender] = []
-        else:       #是有效值，有效值要分为第一次or非第一次
-            if sender in SENDER_MAILBOXES_BLOB.keys():
+                SENDER_MAILBOXES_BLOB[sender] = []      #虽然第一次出现，但此次无效，给一个空的
+        else:       #此次是有效值，有效值要分为第一次or非第一次
+            if sender in SENDER_MAILBOXES_BLOB.keys():   #这次是有效值，且sender非第一次出现，直接叠加
                 SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
                 SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
             else:
-                SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
+                SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES'] #此次是有效值，且sender第一次，直接给
         # 4) for skypes
-        if 'Unsolved' in str(blob['SKYPES']):    #是无效值，无效值也要分为第一次or非第一次
-            if sender in SENDER_SKYPES_BLOB.keys():
-                SENDER_SKYPES_BLOB[sender] += []
+        if 'Unsolved' in str(blob['SKYPES']):    #此次是无效值，无效值也要分为第一次or非第一次
+            if sender in SENDER_SKYPES_BLOB.keys():   #非第一次出现，但此次是无效，所以pass
+                pass
             else:
-                SENDER_SKYPES_BLOB[sender] = []
-        else:   #是有效值，有效值要分为第一次or非第一次
-            if sender in SENDER_SKYPES_BLOB.keys():
+                SENDER_SKYPES_BLOB[sender] = []    #虽然第一次出现，但此次无效，给一个空的
+        else:   #此次是有效值，有效值要分为第一次or非第一次
+            if sender in SENDER_SKYPES_BLOB.keys():    #这次是有效值，且sender非第一次出现，直接叠加
                 SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
                 SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
             else:
-                SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
+                SENDER_SKYPES_BLOB[sender] = blob['SKYPES']  #此次是有效值，且sender第一次，直接给
     return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_PIC_BLOB
 
 def to_viewpoint(blob_in):
@@ -829,7 +831,8 @@ if __name__ == "__main__":
             if 'bancosta' in this_mailbox.lower():
                 del_these.append(this_mailbox)
         SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES)-set(del_these))
-    print("Failures %s:"%len(FAILURE_LIST), set(FAILURE_LIST))
+    print("Failures %s:"%len(FAILURE_LIST))
+    #print(set(FAILURE_LIST))
 
     #Generate outputs:
     output_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
