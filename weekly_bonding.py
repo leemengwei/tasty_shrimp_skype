@@ -93,15 +93,16 @@ README = \
 6、生成该blob；
 *************************************
 '''
-#def reading_whole_pickle():
-#    f = open(DATA_PATH_PREFIX+'/middle_blobs.pkl', 'rb')
-#    blobs = []
-#    while 1:
-#        try:
-#            blobs.append(pickle.load(f))
-#        except EOFError:
-#            break
-#    return blobs
+def reading_whole_pickle():
+    f = open('output/middle_blobs.pkl', 'rb')
+    blobs = []
+    while 1:
+        try:
+            #blobs.append(pickle.load(f))
+            blobs += pickle.load(f)
+        except EOFError:
+            break
+    return blobs
 
 @calc_time
 def get_vessels_repository_and_patterns(args):
@@ -208,10 +209,10 @@ def parse_msg(args, msg_file_path):
         msg.close()
         return msg_body.decode()   #TODO: 这里是否有回复？？ 此时回复是否有法判断？
     f = msg_file_path  # Replace with yours
-    msg_sender = ''
-    msg_subject = ''
-    msg_content = ''
-    msg_body = ''
+    msg_sender = 'Error'
+    msg_subject = 'Error'
+    msg_content = 'Error'
+    msg_body = 'Error'
     try:
         msg = Message(f)
         try:
@@ -226,16 +227,10 @@ def parse_msg(args, msg_file_path):
             msg_body = msg.body
         except:
             msg_body = 'Error, Cant get body'
-        if msg_sender == '':
-            msg_sender = 'Error, Cant get sender'
-        if msg_subject == '':
-            msg_subject = 'Error, Cant get subject'
-        if msg_body == '':
-            msg_body = 'Error, Cant get body'
     except Exception as e:
+        msg_sender = 'Error, Wont have sender'
+        msg_subject = 'Error, Wont have subject'
         try:
-            msg_sender = 'Error, Wont have sender' if msg_sender == '' else msg_sender
-            msg_subject = 'Error, Wont have subject' if msg_subject == '' else msg_subject
             try:
                 msg_body = olefile_read(f)
             except:
@@ -244,7 +239,8 @@ def parse_msg(args, msg_file_path):
         except:
             if args.DEBUG:
                 print("Failed on extract_msg!",e)
-            pass
+            return 'Error', 'Error', 'Error'
+    msg_sender = '' if msg_sender is None else msg_sender
     msg_subject = '' if msg_subject is None else msg_subject
     msg_body = '' if msg_body is None else msg_body
     msg_content = msg_subject + msg_body  #Content include all
@@ -258,16 +254,12 @@ def parse_msg(args, msg_file_path):
 
 @calc_time
 def retrieve_sender_email(args, msg_sender):
-    sender_email_raw = msg_sender
-    if sender_email_raw is None:
-        sender_email_raw = ' '
     pattern = re.compile('<(.*)>')
-    sender_email = pattern.findall(sender_email_raw)
+    sender_email = pattern.findall(msg_sender)
     if len(sender_email)>0:
         sender_email = sender_email[0].lower()
     else:
-        if args.DEBUG:print("Error getting sender: %s"%sender_email_raw)
-        sender_email = ""
+        sender_email = str(msg_sender)
     if args.DEBUG:print("Got sender:", sender_email)
     return sender_email
 
@@ -447,14 +439,14 @@ def retrieve_skype(args, msg_content):
     return skypes_id
 
 @calc_time
-def retrieve_pic_mailboxes(args, msg_content, sender_email):
+def retrieve_relevant_mailboxes(args, msg_content, sender_email):
     pattern = re.compile('([a-z0-9_\.]+@[a-z0-9\.]+\.[a-z]+)', re.I)
-    pic_mailboxes  = pattern.findall(msg_content)
-    pic_mailboxes += [sender_email]
-    if args.DEBUG:print("Got mailboxes:", pic_mailboxes)
-    for idx,this_pic_mailbox in enumerate(pic_mailboxes):
-        pic_mailboxes[idx] = this_pic_mailbox.lower()
-    return pic_mailboxes
+    relevant_mailboxes  = pattern.findall(msg_content)
+    relevant_mailboxes += [sender_email]
+    if args.DEBUG:print("Got mailboxes:", relevant_mailboxes)
+    for idx,this_pic_mailbox in enumerate(relevant_mailboxes):
+        relevant_mailboxes[idx] = this_pic_mailbox.lower()
+    return relevant_mailboxes
 
 @calc_time
 def retrieve_pic_skype(args, msg_content, vessels_name, skypes_id):
@@ -481,14 +473,15 @@ def retrieve_mv_pic_pair(args, msg_content, vessels_name, vessels_position, pers
                 mv_pic_pair[mv].remove('')
     return mv_pic_pair
 
-def parse_blob(args, msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype):
+def parse_blob(args, msg_file, vessels_name, sender_email, skypes_id, relevant_mailboxes, pic_skype, priority):
     blob = {}
     blob['MSG_FILE'] = msg_file
     blob['MV'] = vessels_name
     blob['SENDER'] = sender_email
     blob['SKYPES'] = skypes_id
-    blob['MAILBOXES'] = pic_mailboxes
-    blob['PIC_SKYPE'] = pic_skype
+    blob['MAILBOXES'] = relevant_mailboxes
+    blob['PIC_SKYPE'] = pic_skype  #this is a dict
+    blob['PRIORITY'] = priority
     if args.DEBUG:print(blob)
     return blob
 
@@ -518,92 +511,155 @@ def get_bonding_repository(args):
 
 def solve_one_msg(struct):
     blob = {}
-    vessels_name = ['Not solved']
-    sender_email = ['Not solved']
-    skypes_id = ['Not solved']
-    pic_mailboxes = ['_BROKER_MAILBOXES_']
-    pic_skype = ['Not solved']
+    vessels_name = ['Unsolved (decoding)']
+    sender_email = 'Unsolved (decoding)'
+    skypes_id = ['Unsolved (decoding)']
+    relevant_mailboxes = ['Unsolved (decoding)']
+    pic_skype = {'Unsolved': ["Unsolved (decoding)"]}
+    priority = 'low'
     global TRASH_SENDER
     row_idx, args, this_msg_file, FAILURE_LIST = struct[0], struct[1], struct[2], struct[3]
     msg_sender, msg_subject, msg_content = parse_msg(args, this_msg_file)
+    #Now start:
+    #Case 0
+    # 尝试解析邮件, 如果有error就掠过
     if 'Error' in str(msg_subject):
         FAILURE_LIST.append(this_msg_file)
-        pass
-    #Now start:
-    sender_email = retrieve_sender_email(args, msg_sender)
-    must_ignore_status = (np.array([str(sender_email).lower().find(i.lower()) for i in SENDERS_must_ignore])>=0).any()
-    if must_ignore_status:
-        pass    #Just ignored these senders.
-    #判断是否是Re或其他如Ausca的情况
-    if judge_if_is_not_REply_or_others(args, sender_email, msg_subject, msg_content)==True:
-        vessels_name, vessels_position = retrieve_vessel(args, msg_content, vessels_patterns)
-        if len(vessels_name)==0:
-            pass    #If no vessel found, just pass
-        else:
-            person_names, person_positions = retrieve_person_this_company(args, msg_sender, msg_content, company_person_skype_pattern)
-            skypes_id = retrieve_skype(args, msg_content)
-            pic_skype = retrieve_pic_skype(args, msg_content, vessels_name, skypes_id)
-            mv_pic_pair = retrieve_mv_pic_pair(args, msg_content, vessels_name, vessels_position, person_names, person_positions)
-            pic_skype = mv_pic_pair
-            if judge_if_direct_bonding(args, sender_email, bonding_repository) is True:
-                #embed()   #company_person_skype
-                #print(sender_email)
-                pic_mailboxes = retrieve_pic_mailboxes(args, msg_content, sender_email)
-            else:   #When not direct bonding, broker
-                #sender_email = '_BROKER_SENDER_'
-                #skypes_id = ['_BROKER_SKYPES_']
-                pic_mailboxes = ['_BROKER_MAILBOXES_']
-                pic_skype.update({'_BROKER_TOKEN_': 'None'})   #len=1 for direct, or len=2 for shit broker's msg
+    #Case 1
     else:
-        if args.DEBUG:print("This is Reply or with trashes! pass")
-        pass
-    blob = parse_blob(args, this_msg_file, vessels_name, sender_email, skypes_id, pic_mailboxes, pic_skype)
+        sender_email = retrieve_sender_email(args, msg_sender)
+        must_ignore_senders = (np.array([str(sender_email).lower().find(i.lower()) for i in SENDERS_must_ignore])>=0).any()
+        #Case 1-1
+        # 先判断是否是ignored senders， 如果是则直接返回一些填充给blob
+        if must_ignore_senders:
+            if args.DEBUG:print("This is ignored senders! pass")
+            vessels_name = ['Unsolved (ignored senders)']
+            sender_email = sender_email   #which will be ignored
+            skypes_id = ['Unsolved (ignored senders)']
+            relevant_mailboxes = ['Unsolved (ignored senders)']
+            pic_skype = {'Unsolved (ignored senders)': ['Unsolved (ignored senders)']}
+        #Case 1-2
+        #其次，判断是否满足非Re或其他如Ausca的情况，否则直接进入trash
+        elif judge_if_is_not_REply_or_others(args, sender_email, msg_subject, msg_content)==True:
+            vessels_name, vessels_position = retrieve_vessel(args, msg_content, vessels_patterns)
+            #Case 1-2-1
+            if len(vessels_name)==0:
+                vessels_name = []
+                skypes_id = ['Unsolved (no vessels)']
+                relevant_mailboxes = ['Unsolved (no vessels)']
+                pic_skype = {'Unsolved (no vessels)':['Unsolved (no vessels)']}
+            #Case 1-2-2
+            else:
+                person_names, person_positions = retrieve_person_this_company(args, msg_sender, msg_content, company_person_skype_pattern)
+                skypes_id = retrieve_skype(args, msg_content)
+                #pic_skype = retrieve_pic_skype(args, msg_content, vessels_name, skypes_id)
+                #mv_pic_pair = retrieve_mv_pic_pair(args, msg_content, vessels_name, vessels_position, person_names, person_positions)
+                #pic_skype = mv_pic_pair
+                pic_skype = {'MV COMMING FUTURE': ['COMING FUTURE']}
+                relevant_mailboxes = retrieve_relevant_mailboxes(args, msg_content, sender_email)
+                #Case 1-2-2-1
+                if judge_if_direct_bonding(args, sender_email, bonding_repository) is True:
+                    #embed()   #TODO: company_person_skype
+                    priority = 'high'
+                #Case 1-2-2-2
+                else:   #When not direct bonding, broker
+                    if args.DEBUG:print("Priority remains low")
+                    pass
+        #再次，如果以上都不符合，则就是带有Re或其他垃圾内容的trash。
+        #Case 1-3
+        else:
+            if args.DEBUG:print("This is Reply or with trashes! pass")
+            vessels_name = ['Unsolved (trash)']
+            sender_email = sender_email
+            skypes_id = ['Unsolved (trash)']
+            relevant_mailboxes = ['Unsolved (trash)']
+            pic_skype = {'Unsolved (trash)': ['Unsolved (trash)']}
+    blob = parse_blob(args, this_msg_file, vessels_name, sender_email, skypes_id, relevant_mailboxes, pic_skype, priority)
     return blob
 
 def concat_blobs_through_history(args, blobs):
     for _idx_, blob in enumerate(blobs):
-        if 'Not solved' in str(blob):continue
         #Now that BLOB is here anyway, decide what to do:
         #SUBSTUTIVE: (for sender and pic_skype)
+        # 1), for sender
         for mv in blob['MV']:
-            if mv not in MV_SENDER_BLOB.keys():       #First time show up
+            if mv not in MV_SENDER_BLOB.keys():       #第一次出现，直接赋值给它
                 MV_SENDER_BLOB[mv] = blob['SENDER'] 
             else:
-                if blob['SENDER'] == '_BROKER_SENDER_':  #Non-direct will give ['_BROKER_SENDER_'].
-                    pass
+                if 'Unsolved' in str(MV_SENDER_BLOB[mv]):   #如不是第一次，但之前赋值包含unsolved（无效）
+                    MV_SENDER_BLOB[mv] = blob['SENDER']     #则直接替换
                 else:
-                    MV_SENDER_BLOB[mv] = blob['SENDER'] 
-        for mv in blob['MV']:
-            if mv not in MV_SKYPE_BLOB.keys():   #First time show up
-                MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'][mv]
-            else:
-                if blob['SENDER'] == '_BROKER_SENDER_':   #JUDGE IF GIVEN BY SHIT BROKER USING ITS SENDER TOKEN
-                    if '_BROKER_TOKEN_' in MV_SKYPE_BLOB[mv] and len(blob['PIC_SKYPE'])>1 and blob['PIC_SKYPE'][mv] != []:
-                        MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'][mv]  #Shit for shit.
-                    else:
+                    if blob['PRIORITY'] == 'low':  #否则如果旧值有效，low优先级不允许替换
                         pass
-                else:   #when _BROKER_SENDER not in it
-                    if blob['PIC_SKYPE'][mv] != []:
-                        MV_SKYPE_BLOB[mv] = blob['PIC_SKYPE'][mv] #Update pic only when actually found and is not given by shit broker 
+                    else:
+                        if 'Unsolved' in str(blob['SENDER']):  #high优先级无效值也不允许替换
+                            pass
+                        else:
+                            MV_SENDER_BLOB[mv] = blob['SENDER']
+        # 2), for pic_skype
+        for mv in blob['MV']:
+            if mv in blob['PIC_SKYPE'].keys(): #首先确有其key
+                if mv not in MV_PIC_BLOB.keys():   #第一次出现时：
+                    if blob['PRIORITY'] == 'low':  #低优先级的填入，同时以额外token标记
+                        MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv] + ['_BROKER_TOKEN_']
+                    else:
+                        MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv]  #高优先级直接填入
+                else:        #非第一次出现时
+                    if blob['PRIORITY'] == 'low':  #如此时优先级低，则
+                        if '_BROKER_TOKEN_' in MV_PIC_BLOB[mv]:    #先前的内容也是低优先级的
+                            if blob['PIC_SKYPE'][mv] != []:  #此时是有效值
+                                MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv] + ['_BROKER_TOKEN_']  #则替换，记得token
+                            else:     
+                                pass       #都是低优先级，但这次是无效的，直接pass
+                        else:       #先前的内容是高优先级的
+                            if MV_PIC_BLOB[mv] == []:  #但是是无效的高优先级
+                                MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv] + ['_BROKER_TOKEN_']  #则替换，记得token
+                            else:
+                                pass
+                    else:   #此时是高优先级，则
+                        if blob['PIC_SKYPE'][mv] != []:   #且是有效的
+                            MV_PIC_BLOB[mv] = blob['PIC_SKYPE'][mv]   #则替换
+                        else:
+                            pass   #此次是无效值，则就保留之前的不变
+            else:      #没有它的key也要强行填一个, 保持to dataframe时候list的长度一致（按说不应该到这里）
+                MV_PIC_BLOB[mv] = []
         #ACCUMULATIVE:
         sender = blob['SENDER']
         #Worryring about shit broker? Will use as key, so let it be~
-        if sender in SENDER_MAILBOXES_BLOB.keys():
-            SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
-            SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
-        else:
-            SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
-        if sender in SENDER_SKYPES_BLOB.keys():
-            SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
-            SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
-        else:
-            SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
-    return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB
+        # 3), for mailboxes
+        if 'Unsolved' in str(blob['MAILBOXES']):     #是无效值，无效值也要分为第一次or非第一次
+            if sender in SENDER_MAILBOXES_BLOB.keys():
+                SENDER_MAILBOXES_BLOB[sender] += []
+            else:
+                SENDER_MAILBOXES_BLOB[sender] = []
+        else:       #是有效值，有效值要分为第一次or非第一次
+            if sender in SENDER_MAILBOXES_BLOB.keys():
+                SENDER_MAILBOXES_BLOB[sender] += blob['MAILBOXES']
+                SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender]))
+            else:
+                SENDER_MAILBOXES_BLOB[sender] = blob['MAILBOXES']
+        # 4) for skypes
+        if 'Unsolved' in str(blob['SKYPES']):    #是无效值，无效值也要分为第一次or非第一次
+            if sender in SENDER_SKYPES_BLOB.keys():
+                SENDER_SKYPES_BLOB[sender] += []
+            else:
+                SENDER_SKYPES_BLOB[sender] = []
+        else:   #是有效值，有效值要分为第一次or非第一次
+            if sender in SENDER_SKYPES_BLOB.keys():
+                SENDER_SKYPES_BLOB[sender] += blob['SKYPES']
+                SENDER_SKYPES_BLOB[sender] = list(set(SENDER_SKYPES_BLOB[sender]))
+            else:
+                SENDER_SKYPES_BLOB[sender] = blob['SKYPES']
+    return MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_PIC_BLOB
 
 def to_viewpoint(blob_in):
-    #f = open(DATA_PATH_PREFIX+'/middle_blobs.pkl', 'ab')
-    #pickle.dump(blob_in, f)
-    #f.close()
+    try:
+        f = open('output/middle_blobs.pkl', 'wb')
+        pickle.dump(blob_in, f)
+        f.close()
+    except:
+        print("To pickle error, embeding...")
+        embed()
     #Just for show 注意Note 读入的数据还是来自pkl的（因为写进去的数据类型都变了 太麻烦）
     blobs = copy.deepcopy(blob_in)
     for row_idx, blob in enumerate(blobs):
@@ -614,7 +670,7 @@ def to_viewpoint(blob_in):
         #    piece_of_output.index=[row_idx]  #just修改一下index
         #    piece_of_output.to_csv(DATA_PATH_PREFIX+"/middle_blobs_for_view.csv", mode='a', header=False)
     output = pd.DataFrame(data=blobs, index=range(len(blobs)))[COLUMNS]
-    output.to_csv("output/middle_blobs_for_view.csv", header=False)
+    output.to_csv("output/middle_blobs_for_view.csv", mode='w', header=False)
     return
 
 def moving_to_consumed(msg_files):
@@ -646,7 +702,7 @@ if __name__ == "__main__":
     MV_SENDER_BLOB = {}
     SENDER_MAILBOXES_BLOB = {}
     SENDER_SKYPES_BLOB = {}
-    MV_SKYPE_BLOB = {}
+    MV_PIC_BLOB = {}
     if not MP:
         TRASH_SENDER = []
         FAILURE_LIST = []
@@ -660,49 +716,53 @@ if __name__ == "__main__":
         consumed_files = glob.glob("%s/msgs/consumed/*.msg"%DATA_PATH_PREFIX)
         for this_consumed_file in consumed_files:
             shutil.move(this_consumed_file, this_consumed_file.replace("consumed",""))
-        #从零 Form a new middle blobs file
-        #pd.DataFrame(columns = COLUMNS).to_csv(DATA_PATH_PREFIX+'/middle_blobs_for_view.csv')
-        #if os.path.exists(DATA_PATH_PREFIX+'/middle_blobs.pkl'):
+        #从零 Form a new middle blobs file, & middle blobs pickle
+        #pd.DataFrame(columns = COLUMNS).to_csv('output/middle_blobs_for_view.csv')
+        #if os.path.exists('output/middle_blobs.pkl'):
         #    print("Start from scratch, removing blobs pikcle")
-        #    os.remove(DATA_PATH_PREFIX+'/middle_blobs.pkl')
+        #    os.remove('output/middle_blobs.pkl')
+        blobs = []
         #checkpoint = pd.DataFrame()
     else:
         print("Running restart.... Loading checkpoint...")
-        try:
-            restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
-            restart_SENDER_MAILBOXES = pd.read_csv("output/core_SENDER_MAILBOXES.csv")
-            restart_SENDER_SKYPES = pd.read_csv("output/core_SENDER_SKYPES.csv")
-            restart_MV_SKYPE = pd.read_csv("output/core_MV_SKYPE.csv")
-            TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
-        except Exception as e:
-            print("e\n Error reading restart file, you may want to run from scratch? with -S")
-            sys.exit()
-        for i in restart_MV_SENDER.iterrows():
-            MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
-        for i in restart_SENDER_MAILBOXES.iterrows():
-            tmp = i[1].MAILBOXES.strip("[]'").split("', '")
-            try:
-                tmp.remove('')
-            except:
-                pass
-            SENDER_MAILBOXES_BLOB[i[1].SENDER] = tmp
-        for i in restart_SENDER_SKYPES.iterrows():
-            tmp = i[1].SKYPES.strip("[]'").split("', '")
-            try:
-                tmp.remove('')
-            except:
-                pass
-            SENDER_SKYPES_BLOB[i[1].SENDER] = tmp
-        for i in restart_MV_SKYPE.iterrows():
-            if i[1].PIC_SKYPE is not np.nan:
-                tmp = i[1].PIC_SKYPE.strip("[]'").split("', '")
-            else:
-                tmp = ''
-            try:
-                tmp.remove('')
-            except:
-                pass
-            MV_SKYPE_BLOB[i[1].MV] = tmp
+        blobs = []
+        f = open('output/middle_blobs.pkl', 'rb')
+        blobs = pickle.load(f)
+        #try:
+        #    restart_MV_SENDER = pd.read_csv("output/core_MV_SENDER.csv")
+        #    restart_SENDER_MAILBOXES = pd.read_csv("output/core_SENDER_MAILBOXES.csv")
+        #    restart_SENDER_SKYPES = pd.read_csv("output/core_SENDER_SKYPES.csv")
+        #    restart_MV_SKYPE = pd.read_csv("output/core_MV_SKYPE.csv")
+        #    TRASH_SENDER = list(pd.read_csv('output/TRASH_SENDER.csv')['TRASH_SENDER'])
+        #except Exception as e:
+        #    print("e\n Error reading restart file, you may want to run from scratch? with -S")
+        #    sys.exit()
+        #for i in restart_MV_SENDER.iterrows():
+        #    MV_SENDER_BLOB[i[1].MV] = i[1].SENDER
+        #for i in restart_SENDER_MAILBOXES.iterrows():
+        #    tmp = i[1].MAILBOXES.strip("[]'").split("', '")
+        #    try:
+        #        tmp.remove('')
+        #    except:
+        #        pass
+        #    SENDER_MAILBOXES_BLOB[i[1].SENDER] = tmp
+        #for i in restart_SENDER_SKYPES.iterrows():
+        #    tmp = i[1].SKYPES.strip("[]'").split("', '")
+        #    try:
+        #        tmp.remove('')
+        #    except:
+        #        pass
+        #    SENDER_SKYPES_BLOB[i[1].SENDER] = tmp
+        #for i in restart_MV_SKYPE.iterrows():
+        #    if i[1].PIC_SKYPE is not np.nan:
+        #        tmp = i[1].PIC_SKYPE.strip("[]'").split("', '")
+        #    else:
+        #        tmp = ''
+        #    try:
+        #        tmp.remove('')
+        #    except:
+        #        pass
+        #    MV_PIC_BLOB[i[1].MV] = tmp
     #Will work on files:
     msg_files = glob.glob(DATA_PATH_PREFIX+"/msgs/*.msg")
     msg_files.sort()
@@ -711,9 +771,8 @@ if __name__ == "__main__":
     vessels_repository, vessels_patterns = get_vessels_repository_and_patterns(args)
     company_person_skype, company_person_skype_pattern = get_person_name_repository_and_patterns(args)
 
-    #第一部分，动态存储文件:
+    #Step1 第一部分，逐一解析文件，并存储pkl:
     #Loop over msgs:
-    blobs = []
     if MP:
         pool = Pool(processes=int(cpu_count()/2))   #cpu_count()/2, 既省电也高效。
         struct_list = []
@@ -725,7 +784,7 @@ if __name__ == "__main__":
           remaining = rs._number_left
           print("Waiting for", remaining, "tasks to complete...")
           time.sleep(10)
-        blobs = rs.get()   #HISTORY ORDER IS WITHIN!! VERY CONVINIENT
+        blobs += rs.get()   #HISTORY ORDER IS WITHIN!! VERY CONVINIENT
     else:
         for row_idx, this_msg_file in tqdm.tqdm(enumerate(msg_files), total=len(msg_files)):
             struct_this = [row_idx, args, this_msg_file, FAILURE_LIST]
@@ -742,12 +801,12 @@ if __name__ == "__main__":
     except Exception as e:
         print("Viewpoint error, pass", e)
 
-    #第二部分,读出动态存储的文件，来形成最终数据
+    #Step2 第二部分,读出动态存储的文件，来形成最终数据
     #blobs_read = pd.read_csv(DATA_PATH_PREFIX+'/middle_blobs_for_view.csv', index_col=0)
     #blobs_read = list(blobs_read.to_dict('index').values())
     #blobs_read = reading_whole_pickle()
     #Loop over history:
-    MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_SKYPE_BLOB = concat_blobs_through_history(args, blobs)
+    MV_SENDER_BLOB, SENDER_MAILBOXES_BLOB, SENDER_SKYPES_BLOB, MV_PIC_BLOB = concat_blobs_through_history(args, blobs)
 
     #POSTPROCESSING:
     #for sender_skypes, switch right or wrong
@@ -756,13 +815,13 @@ if __name__ == "__main__":
             if this_skype_id in list(WRONG_SKYPE_PAIR.index):
                 SENDER_SKYPES_BLOB[sender][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
     #for pic_skype, switch right or wrong
-    for mv in MV_SKYPE_BLOB.keys():
-        for idx,this_skype_id in enumerate(MV_SKYPE_BLOB[mv]):
+    for mv in MV_PIC_BLOB.keys():
+        for idx,this_skype_id in enumerate(MV_PIC_BLOB[mv]):
             if this_skype_id in list(WRONG_SKYPE_PAIR.index):
-                MV_SKYPE_BLOB[mv][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
+                MV_PIC_BLOB[mv][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
     #for pic_skype, -TOKEN
-    for mv in MV_SKYPE_BLOB.keys():
-        MV_SKYPE_BLOB[mv] = list(set(MV_SKYPE_BLOB[mv])-set(["_BROKER_TOKEN_"]))
+    for mv in MV_PIC_BLOB.keys():
+        MV_PIC_BLOB[mv] = list(set(MV_PIC_BLOB[mv])-set(["_BROKER_TOKEN_"]))
     #for Mailboxes, Blacklist and -skype and -bancosta:
     for sender in SENDER_MAILBOXES_BLOB.keys():
         del_these = []
@@ -772,26 +831,23 @@ if __name__ == "__main__":
         SENDER_MAILBOXES_BLOB[sender] = list(set(SENDER_MAILBOXES_BLOB[sender])-set(SENDER_SKYPES_BLOB[sender])-set(BLACKLIST_MAILBOXES)-set(del_these))
     print("Failures %s:"%len(FAILURE_LIST), set(FAILURE_LIST))
 
-    #embed()
     #Generate outputs:
     output_MV_SENDER = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values())})
     output_SENDER_MAILBOXES = pd.DataFrame({'SENDER':list(SENDER_MAILBOXES_BLOB.keys()), 'MAILBOXES':list(SENDER_MAILBOXES_BLOB.values())})[['SENDER','MAILBOXES']]
     output_SENDER_SKYPES = pd.DataFrame({'SENDER':list(SENDER_SKYPES_BLOB.keys()), 'SKYPES':list(SENDER_SKYPES_BLOB.values())})
-    output_MV_SKYPE = pd.DataFrame({'MV':list(MV_SKYPE_BLOB.keys()), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})
-    output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_SKYPE_BLOB.values())})[['MV','SENDER','MAILBOXES','SKYPES','PIC_SKYPE']]
+    output_MV_SKYPE = pd.DataFrame({'MV':list(MV_PIC_BLOB.keys()), 'PIC_SKYPE':list(MV_PIC_BLOB.values())})
+    output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_PIC_BLOB.values())})[['MV','SENDER','MAILBOXES','SKYPES','PIC_SKYPE']]
+    #output_MV_SENDER_MAILBOXES_SKYPE = pd.DataFrame({'MV':list(MV_SENDER_BLOB.keys()), 'SENDER':list(MV_SENDER_BLOB.values()), 'MAILBOXES':list(map(SENDER_MAILBOXES_BLOB.get, MV_SENDER_BLOB.values())), 'SKYPES':list(map(SENDER_SKYPES_BLOB.get, MV_SENDER_BLOB.values())), 'PIC_SKYPE':list(MV_PIC_BLOB.values())*len(list(MV_SENDER_BLOB.keys()))})[['MV','SENDER','MAILBOXES','SKYPES','PIC_SKYPE']]
     TRASH_SENDER = pd.DataFrame({'TRASH_SENDER': list(TRASH_SENDER)})
     ok = pd.DataFrame({ 'ok': list(SENDER_MAILBOXES_BLOB.keys())})
-    try:
-        output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)  
-        output_SENDER_MAILBOXES.to_csv('output/core_SENDER_MAILBOXES.csv', index=False)
-        output_SENDER_SKYPES.to_csv('output/core_SENDER_SKYPES.csv', index=False)
-        output_MV_SKYPE.to_csv('output/core_MV_SKYPE.csv', index=False)
-        TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
-        ok.to_csv('output/OK.csv', index=False)
-        output_MV_SENDER_MAILBOXES_SKYPE.to_csv('output/core_MV_SENDER_MAILBOXES_SKYPE.csv', index=False)
-    except:
-        print("Saving to csv error, your computer low performance! Will now interact mannually!")
-        embed()
+    #Save output
+    output_MV_SENDER.to_csv('output/core_MV_SENDER.csv', index=False)  
+    output_SENDER_MAILBOXES.to_csv('output/core_SENDER_MAILBOXES.csv', index=False)
+    output_SENDER_SKYPES.to_csv('output/core_SENDER_SKYPES.csv', index=False)
+    output_MV_SKYPE.to_csv('output/core_MV_SKYPE.csv', index=False)
+    TRASH_SENDER.to_csv('output/TRASH_SENDER.csv', index=False)
+    ok.to_csv('output/OK.csv', index=False)
+    output_MV_SENDER_MAILBOXES_SKYPE.to_csv('output/core_MV_SENDER_MAILBOXES_SKYPE.csv', index=False)
 
     moving_to_consumed(msg_files)
     print("All finished.")

@@ -16,6 +16,7 @@ import time
 
 
 def ideal_pool_chats_by_blob(struct):
+    time.sleep(2)
     skype_id, messages, sk = struct[0], struct[1], struct[2]
     @timeout_decorator.timeout(WAIT_TIME)
     def auto_timeout_blob_and_chat(sk, skype_id, messages):
