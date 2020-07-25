@@ -694,11 +694,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     FROM_SCRATCH = args.FROM_SCRATCH
     DATA_PATH_PREFIX = './data/data_bonding_net/'
-    BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/pic_blacklist.txt").readlines()]
+    BLACKLIST_MAILBOXES = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/mailboxes_blacklist.txt").readlines()]
     SENDERS_must_solve_with_RE = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/senders_must_solve_with_RE.txt").readlines()]
     SENDERS_must_ignore = [i.strip('\n').lower() for i in open(DATA_PATH_PREFIX+"/senders_must_ignore.txt").readlines()]
     WRONG_SKYPE_PAIR = pd.read_csv(DATA_PATH_PREFIX+"/problem_skype.csv", index_col=0) 
-    COLUMNS = ['MSG_FILE', 'MV', 'SENDER', 'SKYPES', 'MAILBOXES', 'PIC_SKYPE']
+    COLUMNS = ['MSG_FILE', 'MV', 'SENDER', 'SKYPES', 'MAILBOXES', 'PIC_SKYPE', 'PRIORITY']
 
     #From scratch? checkpoint?
     MV_SENDER_BLOB = {}

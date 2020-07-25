@@ -8,6 +8,7 @@ timeout_decorator
 xlrd
 PyYAML
 nltk
+textract
 
 wget http://nlp.stanford.edu/software/stanford-corenlp-full-2016-10-31.zip
 unzip stanford-corenlp-full-2016-10-31.zip && cd stanford-corenlp-full-2016-10-31

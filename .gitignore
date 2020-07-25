@@ -3,8 +3,6 @@ stanford-ner-2018-10-16/
 stanford-corenlp-full-2016-10-31
 transformers
 *.csv
-*.xlsx
-*.xls
 __pycache__/
 *.py[cod]
 *$py.class
