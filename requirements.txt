@@ -10,9 +10,9 @@ PyYAML
 nltk
 textract
 
-wget http://nlp.stanford.edu/software/stanford-corenlp-full-2016-10-31.zip
-unzip stanford-corenlp-full-2016-10-31.zip && cd stanford-corenlp-full-2016-10-31
+#wget http://nlp.stanford.edu/software/stanford-corenlp-full-2016-10-31.zip
+#unzip stanford-corenlp-full-2016-10-31.zip && cd stanford-corenlp-full-2016-10-31
 
-java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer \
--preload tokenize,ssplit,pos,lemma,parse,depparse \
--status_port 9000 -port 9000 -timeout 15000
+#java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer \
+#-preload tokenize,ssplit,pos,lemma,parse,depparse \
+#-status_port 9000 -port 9000 -timeout 15000
