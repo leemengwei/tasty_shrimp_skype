@@ -802,6 +802,7 @@ if __name__ == "__main__":
         to_viewpoint(blobs)
     except Exception as e:
         print("Viewpoint error, pass", e)
+        embed()
 
     #Step2 第二部分,读出动态存储的文件，来形成最终数据
     #blobs_read = pd.read_csv(DATA_PATH_PREFIX+'/middle_blobs_for_view.csv', index_col=0)
