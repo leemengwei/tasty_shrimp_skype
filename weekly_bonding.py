@@ -125,16 +125,16 @@ def get_vessels_repository_and_patterns(args):
     safe_name.sort(key = lambda i:len(i),reverse=True)
     unsafe_name.sort(key = lambda i:len(i),reverse=True)
     #Use raw name for safe:
-    head = r'[\n\r\t]*('
+    head = r'[\n|\r|\t]*('
     tail = ')[^A-Za-z0-9]'
     pattern1 = head+'|'.join(safe_name)+tail
     #Mv m.v m/v added for unsafe:
-    head = r'[M][\.|/]?[V][\.|/:]?[\'|\"]?('
-    tail = ')[/]*[^A-Za-z0-9]'
+    head = r'M[\.|/| ]?V[\.|/:]? ('
+    tail = ')[^A-Za-z0-9]'
     pattern2 = head+'|'.join(unsafe_name)+tail
     #Porpose propse purpose pps ppse offer for:
-    head = r'[p][u|r]?[r|o]*[p][o]?[s][e]?|offer for[ :\n\r\t]*[\'|\"]?('
-    tail = ')[/]*[^A-Za-z0-9]'
+    head = r'for|our[ |:|\n|\r|\t]+('  
+    tail = ')[^A-Za-z0-9]'
     pattern3 = head+'|'.join(unsafe_name)+tail
     #Not in repository:  mv
     #extra_MV_patterns = '[M|m][.|/]?[V|v][.|/|:]? [\'|\"]?([A-Za-z0-9]+[ |\.]?[A-Za-z0-9]*)[\'|\"]?'
@@ -249,6 +249,8 @@ def parse_msg(args, msg_file_path):
     msg_content = msg_content.replace(' @', '@')
     msg_content = msg_content.replace('@ ', '@')
     msg_content = msg_content.replace('live: ', 'live:')
+    msg_content = msg_content.replace('"', '')
+    msg_content = msg_content.replace("'", '')
     if args.DEBUG:print("In file %s: "%f)
     return msg_sender, msg_subject, msg_content
 
