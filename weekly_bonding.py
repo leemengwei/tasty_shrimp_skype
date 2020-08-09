@@ -815,6 +815,7 @@ if __name__ == "__main__":
 
     #POSTPROCESSING:
     #for sender_skypes, switch right or wrong
+    WRONG_SKYPE_PAIR = WRONG_SKYPE_PAIR.drop_duplicates()
     for sender in SENDER_SKYPES_BLOB.keys():
         for idx,this_skype_id in enumerate(SENDER_SKYPES_BLOB[sender]):
             if this_skype_id in list(WRONG_SKYPE_PAIR.index):
@@ -823,7 +824,7 @@ if __name__ == "__main__":
     for mv in MV_PIC_BLOB.keys():
         for idx,this_skype_id in enumerate(MV_PIC_BLOB[mv]):
             if this_skype_id in list(WRONG_SKYPE_PAIR.index):
-                MV_PIC_BLOB[mv][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right
+                MV_PIC_BLOB[mv][idx] = WRONG_SKYPE_PAIR.loc[this_skype_id].right.values[0]
     #for pic_skype, -TOKEN
     for mv in MV_PIC_BLOB.keys():
         MV_PIC_BLOB[mv] = list(set(MV_PIC_BLOB[mv])-set(["_BROKER_TOKEN_"]))
