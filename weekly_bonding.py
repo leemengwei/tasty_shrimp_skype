@@ -18,7 +18,7 @@ import pickle
 import copy
 
 try:
-    from multiprocessing.pool import Pool
+    from m3ultiprocessing.pool import Pool
     from multiprocessing import Manager
     from multiprocessing import cpu_count
     MP = True
