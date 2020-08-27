@@ -257,7 +257,7 @@ class SkypeMsg(SkypeObj):
 
     @property
     def deleted(self):
-        return self.html == ""
+        return self.content == ""
 
     def read(self):
         """
@@ -576,6 +576,8 @@ class SkypeFileMsg(SkypeMsg):
     @property
     @SkypeUtils.cacheResult
     def fileContent(self):
+        if not self.file:
+            return None
         return self.skype.conn("GET", "{0}/views/original".format(self.file.urlAsm),
                                auth=SkypeConnection.Auth.Authorize).content
 
@@ -601,6 +603,8 @@ class SkypeImageMsg(SkypeFileMsg):
     @property
     @SkypeUtils.cacheResult
     def fileContent(self):
+        if not self.file:
+            return None
         return self.skype.conn("GET", "{0}/views/imgpsh_fullsize".format(self.file.urlAsm),
                                auth=SkypeConnection.Auth.Authorize).content
 
@@ -656,7 +660,7 @@ class SkypeCallMsg(SkypeMsg):
                                  "missed": cls.State.Missed}.get(listTag.get("type")),
                        "userIds": [], "userNames": []})
         for partTag in listTag.find_all("part"):
-            fields["userIds"].append(partTag.get("identity"))
+            fields["userIds"].append(SkypeUtils.noPrefix(partTag.get("identity")))
             fields["userNames"].append(partTag.find("name").text)
         return fields
 

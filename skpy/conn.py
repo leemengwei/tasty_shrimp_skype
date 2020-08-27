@@ -6,14 +6,13 @@ import time
 from types import MethodType
 import hashlib
 import base64
+from pprint import pformat
+from xml.etree import ElementTree
 
 from bs4 import BeautifulSoup
 import requests
 
 from .core import SkypeObj, SkypeEnum, SkypeApiException, SkypeAuthException
-
-if os.getenv("SKPY_DEBUG_HTTP"):
-    from pprint import pformat
 
 
 class SkypeConnection(SkypeObj):
@@ -126,6 +125,7 @@ class SkypeConnection(SkypeObj):
 
     API_LOGIN = "https://login.skype.com/login"
     API_MSACC = "https://login.live.com"
+    API_EDGE = "https://edge.skype.com/rps/v1/rps/skypetoken"
     API_USER = "https://api.skype.com"
     API_PROFILE = "https://profile.skype.com/profile/v1"
     API_OPTIONS = "https://options.skype.com/options/v1/users/self/options"
@@ -365,7 +365,7 @@ class SkypeConnection(SkypeObj):
             .SkypeAuthException: if the login request is rejected
             .SkypeApiException: if the login form can't be processed
         """
-        self.tokens["skype"], self.tokenExpiry["skype"] = SkypeLiveAuthProvider(self).auth(user, pwd)
+        self.tokens["skype"], self.tokenExpiry["skype"] = SkypeSOAPAuthProvider(self).auth(user, pwd)
         self.getUserId()
         self.getRegToken()
 
@@ -592,6 +592,112 @@ class SkypeLiveAuthProvider(SkypeAuthProvider):
         if expiryField:
             expiry = datetime.fromtimestamp(int(time.time()) + int(expiryField.get("value")))
         return (token, expiry)
+
+
+class SkypeSOAPAuthProvider(SkypeAuthProvider):
+    """
+    An authentication provider that connects via Microsoft account SOAP authentication.
+    """
+
+    template = """
+    <Envelope xmlns='http://schemas.xmlsoap.org/soap/envelope/'
+       xmlns:wsse='http://schemas.xmlsoap.org/ws/2003/06/secext'
+       xmlns:wsp='http://schemas.xmlsoap.org/ws/2002/12/policy'
+       xmlns:wsa='http://schemas.xmlsoap.org/ws/2004/03/addressing'
+       xmlns:wst='http://schemas.xmlsoap.org/ws/2004/04/trust'
+       xmlns:ps='http://schemas.microsoft.com/Passport/SoapServices/PPCRL'>
+       <Header>
+           <wsse:Security>
+               <wsse:UsernameToken Id='user'>
+                   <wsse:Username>{}</wsse:Username>
+                   <wsse:Password>{}</wsse:Password>
+               </wsse:UsernameToken>
+           </wsse:Security>
+       </Header>
+       <Body>
+           <ps:RequestMultipleSecurityTokens Id='RSTS'>
+               <wst:RequestSecurityToken Id='RST0'>
+                   <wst:RequestType>http://schemas.xmlsoap.org/ws/2004/04/security/trust/Issue</wst:RequestType>
+                   <wsp:AppliesTo>
+                       <wsa:EndpointReference>
+                           <wsa:Address>wl.skype.com</wsa:Address>
+                       </wsa:EndpointReference>
+                   </wsp:AppliesTo>
+                   <wsse:PolicyReference URI='MBI_SSL'></wsse:PolicyReference>
+               </wst:RequestSecurityToken>
+           </ps:RequestMultipleSecurityTokens>
+       </Body>
+    </Envelope>
+    """
+
+    @staticmethod
+    def encode(value):
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def auth(self, user, pwd):
+        """
+        Perform a SOAP login with the given email address or Skype username, and its password.
+
+        .. note::
+            Microsoft accounts with two-factor authentication enabled must provide an application-specific password.
+
+        Args:
+            user (str): username or email address of the connecting account
+            pwd (str): password of the connecting account
+
+        Returns:
+            (str, datetime.datetime) tuple: Skype token, and associated expiry if known
+
+        Raises:
+            .SkypeAuthException: if the login request is rejected
+            .SkypeApiException: if the login form can't be processed
+        """
+        token = self.getSecToken(user, pwd)
+        return self.exchangeToken(token)
+
+    def getSecToken(self, user, pwd):
+        loginResp = self.conn("POST", "{0}/RST.srf".format(SkypeConnection.API_MSACC),
+                              data=self.template.format(self.encode(user), self.encode(pwd)))
+        loginData = ElementTree.fromstring(loginResp.text)
+        token = None
+        for node in loginData.iter():
+            tag = node.tag.split("}", 1)[-1]
+            if tag == "Fault":
+                code = msg = None
+                for fnode in node:
+                    ftag = fnode.tag.split("}", 1)[-1]
+                    if ftag == "faultcode":
+                        code = fnode.text
+                    elif ftag == "faultstring":
+                        msg = fnode.text
+                if code or msg:
+                    raise SkypeAuthException("{} - {}".format(code, msg), loginResp)
+                else:
+                    raise SkypeApiException("Unknown fault whilst requesting security token", loginResp)
+            elif tag == "BinarySecurityToken":
+                token = node.text
+        if not token:
+            raise SkypeApiException("Couldn't retrieve security token from login response", loginResp)
+        return token
+
+    def exchangeToken(self, token):
+        edgeResp = self.conn("POST", SkypeConnection.API_EDGE,
+                             data={"partner": 999, "access_token": token, "scopes": "client"})
+        try:
+            edgeData = edgeResp.json()
+        except ValueError:
+            raise SkypeApiException("Couldn't parse edge response body", edgeResp)
+        if "skypetoken" in edgeData:
+            token = edgeData["skypetoken"]
+            expiry = None
+            if "expiresIn" in edgeData:
+                expiry = datetime.fromtimestamp(int(time.time()) + int(edgeData["expiresIn"]))
+            return (token, expiry)
+        elif "status" in edgeData:
+            status = edgeData["status"]
+            raise SkypeApiException("{} - {}".format(status.get("code"), status.get("text")), edgeResp)
+        else:
+            raise SkypeApiException("Couldn't retrieve token from edge response", edgeResp)
 
 
 class SkypeGuestAuthProvider(SkypeAuthProvider):
@@ -841,6 +947,10 @@ class SkypeEndpoint(SkypeObj):
 
     attrs = ("id",)
 
+    resources = ["/v1/users/ME/conversations/ALL/properties",
+                 "/v1/users/ME/conversations/ALL/messages",
+                 "/v1/threads/ALL"]
+
     def __init__(self, conn, id):
         """
         Create a new instance based on a newly-created endpoint identifier.
@@ -853,6 +963,7 @@ class SkypeEndpoint(SkypeObj):
         self.conn = conn
         self.id = id
         self.subscribed = False
+        self.subscribedPresence = False
 
     def config(self, name="skype"):
         """
@@ -890,13 +1001,28 @@ class SkypeEndpoint(SkypeObj):
         """
         self.conn("POST", "{0}/users/ME/endpoints/{1}/subscriptions".format(self.conn.msgsHost, self.id),
                   auth=SkypeConnection.Auth.RegToken,
-                  json={"interestedResources": ["/v1/threads/ALL",
-                                                "/v1/users/ME/contacts/ALL",
-                                                "/v1/users/ME/conversations/ALL/messages",
-                                                "/v1/users/ME/conversations/ALL/properties"],
-                        "template": "raw",
-                        "channelType": "httpLongPoll"})
+                  json={"interestedResources": self.resources,
+                        "channelType": "HttpLongPoll",
+                        "conversationType": 2047})
         self.subscribed = True
+
+    def subscribePresence(self, contacts):
+        """
+        Enable presence subscriptions for the authenticated user's contacts.
+
+        Args:
+            contacts (.SkypeContacts): contact list to select user IDs
+        """
+        if not self.subscribed:
+            self.subscribe()
+        resources = list(self.resources)
+        for contact in contacts:
+            resources.append("/v1/users/ME/contacts/8:{}".format(contact.id))
+        self.conn("PUT", "{0}/users/ME/endpoints/{1}/subscriptions/0".format(self.conn.msgsHost, self.id),
+                  auth=SkypeConnection.Auth.RegToken,
+                  params={"name": "interestedResources"},
+                  json={"interestedResources": resources})
+        self.subscribedPresence = True
 
     def getEvents(self):
         """
