@@ -16,17 +16,18 @@ import re
 import add_ons
 import copy
 
+#SETTINGS:
 USERNAME = '1099366685@qq.com' 
 #USERNAME = 'mengxuan@bancosta.com' 
 PASSWORD = 'lmw196411' 
 #PASSWORD = 'Bcchina2020' 
 list_path = 'data/lists_listener/'
+MAX_SEND = 7    #最大重复次数
 
 if USERNAME == '1099366685@qq.com':   #off line test case
     COMMANDERS = {'test_mengxuan':'live:892bfe64f9296876', '1099366685@qq.com':'live:1099366685'}
 else:             #real case
     COMMANDERS = {'mengxuan@bancosta.com':'live:mengxuan_9', '18601156335':'live:a4333d00d55551e'}
-MAX_SEND = 2
 
 def my_print(what, a='',b='',c='',d='',e='',f='',g=''):
     print(what,a,b,c,d,e,f,g)
@@ -117,78 +118,7 @@ class SkypePing(SkypeEventLoop):
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv') 
         my_print("Now listenning...")
 
-    #def check_demand_lists_and_update_their_status_lists(self, event):
-    #    #看看demand lists：
-    #    self.demand_lists = glob.glob(list_path+"/cargo_*.csv")
-    #    self.demand_lists.sort()
-    #    num_of_demand_lists = len(self.demand_lists)
-    #    if num_of_demand_lists != self.old_num:
-    #        my_print("%s demand lists for now..."%num_of_demand_lists, self.demand_lists)
-    #        self.old_num = num_of_demand_lists
-    #    
-    #    #生成/更新对应的status lists:
-    #    #如果不是msg事件，直接返回：
-    #    if not isinstance(event, SkypeNewMessageEvent):
-    #        return
-    #    #如果是msg事件，更新一下所有lists的所有PIC的状态：
-    #    my_print('Chat event...')
-    #    for this_demand_list in self.demand_lists:
-    #        MVs = pd.read_csv(this_demand_list).MV
-    #        PICs = pd.read_csv(this_demand_list).PIC_SKYPE
-    #        PIC_replied_status = collections.OrderedDict()
-    #        MV_in_charge_of = collections.OrderedDict()
-    #        for row_idx,this_row_PIC in enumerate(PICs):
-    #            PICs_in_this_box = this_row_PIC.strip("[]'").replace(' ','').replace("','",",").replace("'","").replace("\"","").split(',')
-    #            for this_PIC in PICs_in_this_box:
-    #                if not isinstance(this_PIC, str):continue   #试图跳过不可见的空pic
-    #                #Cooked or Raw? 回复的人就记成True，随后关联该船的人也记True
-    #                PIC_replied_status[this_PIC] = True if this_PIC in event.msg.userId else False
-    #                MV_in_charge_of[this_PIC] = MVs[row_idx]
-    #        now_status = pd.DataFrame({'STATUS':list(PIC_replied_status.values()), 'MV':list(MV_in_charge_of.values())}, index=list(PIC_replied_status.keys()))
-    #        #随后关联该船的人也记True:
-    #        replied_MV = list(now_status[now_status.STATUS==True].MV)
-    #        for row in now_status.iterrows():
-    #            if row[1].MV in replied_MV:
-    #                now_status.loc[(row[0],'STATUS')]=True
-    #        #很可能已经有旧的状态表了：
-    #        old_status = None
-    #        this_status_list = list_path+'status_for_%s'%this_demand_list.split('/')[-1]
-    #        if os.path.exists(this_status_list):
-    #            old_status = pd.read_csv(this_status_list, index_col=0)  #读旧
-    #        if old_status is not None:
-    #            common_index = list(set(now_status.index) & set(old_status.index)) #取出common的人，别的不要了
-    #            now_status.loc[(common_index,'STATUS')] = old_status.loc[(common_index,'STATUS')]|now_status.loc[(common_index,'STATUS')]
-    #        now_status.to_csv(this_status_list)   #存新
-    #        my_print(this_status_list.split('/')[-1], '\n', now_status, '\n')
-
-    #def update_reply_status(self, event):
-    #    someone = None
-    #    if isinstance(event, SkypeNewMessageEvent):
-    #        someone = event.msg.userId
-    #        my_print(someone, 'says:', event.msg.content)
-    #    if someone in self.PICs:
-    #        self.he_who_replied += [someone]
-    #        my_print("%s replied! Noted"%someone)
-
-    #def cook_time(self):
-    #    now = datetime.datetime.now()
-    #    if now.second!=9:
-    #        #my_print("Launcher ready, but not now, waiting...")
-    #        return False
-    #    else:
-    #        my_print("Launching Now! Target:", self.PICs)
-    #        return True
-    #
-    #def launch_or_wait(self, event):
-    #    if not isinstance(event, SkypeNewMessageEvent):
-    #        return
-    #    my_print("Bombbing!")
-    #    logname = '-'.join(str(datetime.datetime.now()).replace(':','').split(' ')).split('.')[0]
-    #    my_print("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
-    #    os.system("python hourly_send.py cargo_1.csv >& %s.log &"%logname)
-    #    return
-
-    def leave_traces(self):
+    def leave_traces_before_drop(self):
         my_print("Leaving traces %s"%self.for_traces)
         self.for_traces = pd.DataFrame(self.for_traces).T if not isinstance(self.for_traces, pd.core.frame.DataFrame) else self.for_traces
         self.for_traces.to_csv('data/lists_listener/follow_traces.csv', mode='a', header=False)
@@ -223,7 +153,7 @@ class SkypePing(SkypeEventLoop):
                 #Interfere:
                 self.for_traces = copy.deepcopy(self.tasks.loc[to_whom])
                 if len(self.for_traces)>0:
-                    self.leave_traces()
+                    self.leave_traces_before_drop()
                 self.tasks = self.tasks.drop(to_whom)
                 try:
                     timeout_sendMsg(REPORT_BLOB, "Job dropped at: "+to_whom)    #Report to Mowin
@@ -267,8 +197,28 @@ class SkypePing(SkypeEventLoop):
                 #Interfere:
                 self.for_traces = self.tasks.iloc[list(set(range(len(self.tasks)))-set(idx_keep))]
                 if len(self.for_traces)>0:
-                    self.leave_traces()
+                    self.leave_traces_before_drop()
                 self.tasks = self.tasks.iloc[idx_keep]
+        #Case x 收到commander的快速Repeat信号，repeat某些货
+        if whos_talking in COMMANDERS.values():
+            repeat_what = re.findall("\[REPEAT: (.*?)\]", talking_what)
+            if len(repeat_what) <=0:
+                #没说repeat什么，跳过
+                pass
+            else:
+                repeat_what = repeat_what[0]
+                #一行行看内容、id，决定是否repeat：
+                for idx,i in enumerate(self.tasks.iterrows()):
+                    if repeat_what not in i[1].talking_what:
+                        pass     #这一行内容上没出现需要repeat的内容
+                    else:
+                        try:
+                            timeout_sendMsg(REPORT_BLOB, "Will soon repeating job for %s (%s...)"%(i[0], i[1].talking_what[:10]))
+                            #Interfere:
+                            self.tasks.iloc[idx, np.where(self.tasks.columns=='when')[0][0]] = datetime.datetime.now()
+                            self.tasks.iloc[idx, np.where(self.tasks.columns=='interval')[0][0]] = 24*60
+                        except Exception as e:
+                            my_print(e)
         #Case 5 收到测试活动信号 [TASKS]
         if whos_talking in COMMANDERS.values() and '[TASKS]'==talking_what:
             try:
@@ -362,7 +312,7 @@ class SkypePing(SkypeEventLoop):
         #Interfere,发的够多的就可以不要了，少的留着
         self.for_traces = copy.deepcopy(self.tasks.iloc[enough_is_enough])
         if len(self.for_traces)>0:
-            self.leave_traces()
+            self.leave_traces_before_drop()
         self.tasks = self.tasks.iloc[list(set(range(len(self.tasks.index)))-set(enough_is_enough))]
         self.tasks[self.column_order_list].to_csv('data/lists_listener/follow_up_checkpoint.csv')
         
@@ -390,12 +340,9 @@ if __name__ == "__main__":
     my_print("Start")
     report_to = COMMANDERS[list(set(COMMANDERS.keys()) - set([USERNAME]))[0]]
     sk = SkypePing()
+    print("Reporting to :", report_to)
     REPORT_BLOB = timeout_getblob(sk.skype, report_to)
     sk.loop()
-
-
-
-
 
 
 
