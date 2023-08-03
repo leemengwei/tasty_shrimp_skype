@@ -1,3 +1,3 @@
 # tasty_shrimp_skype
 
-臭鱼烂虾
+Marshal has resigned from Bancosta, which brings an end to this project, RIP.
